@@ -1,0 +1,1519 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="dark" />
+<link rel="icon" href="data:," />
+<title>Document Photo Cleanup</title>
+<style>
+  :root{
+    --bg:#060f1e; --bg2:#081831; --panel:#0b1c34; --panel2:#0d2240;
+    --line:#1c3a5e; --line-soft:#16304f;
+    --ink:#e8f1fb; --muted:#9db4cc; --faint:#6f87a3;
+    --cyan:#2dd4ee; --cyan-dim:#155e6e; --amber:#f5b83d; --amber-ink:#1a1204;
+    --good:#3ddc97; --bad:#fb7185;
+    --radius:14px;
+    --mono:"Times New Roman",Times,serif;
+    --sans:"Times New Roman",Times,serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:radial-gradient(1200px 600px at 80% -10%,#0d2c52 0%,transparent 60%),radial-gradient(900px 500px at -10% 20%,#0a2140 0%,transparent 55%),var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.55;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 18px 70px}
+  /* header */
+  header{padding:38px 0 8px}
+  .kicker{font-family:var(--mono);font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--cyan)}
+  h1{font-size:clamp(30px,5.4vw,50px);line-height:1.06;margin:10px 0 8px;font-weight:800;letter-spacing:-.01em}
+  h1 .thin{color:var(--cyan)}
+  .byline{color:var(--muted);font-size:15px;margin:0}
+  .byline b{color:var(--ink);font-weight:600}
+  .lede{max-width:720px;color:var(--muted);font-size:16px;margin:14px 0 0}
+  .lede b{color:var(--ink)}
+  /* signal chain strip */
+  .chain{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:22px 0 4px;font-family:var(--mono);font-size:12px}
+  .chain .node{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:6px 12px;color:var(--muted)}
+  .chain .node b{color:var(--cyan);font-weight:600}
+  .chain .arr{color:var(--faint)}
+  /* progress */
+  .progress{position:sticky;top:0;z-index:30;background:rgba(6,15,30,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line-soft);margin:18px -18px 0;padding:10px 18px}
+  .progress ol{display:flex;gap:6px;list-style:none;margin:0;padding:0;flex-wrap:wrap}
+  .progress li{flex:1 1 120px;display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--faint);border:1px solid var(--line-soft);border-radius:999px;padding:6px 12px;background:var(--panel)}
+  .progress li .n{font-family:var(--mono);width:20px;height:20px;border-radius:50%;border:1px solid var(--line);display:grid;place-items:center;font-size:11px;flex:none}
+  .progress li.active{color:var(--ink);border-color:var(--cyan-dim)}
+  .progress li.active .n{background:var(--cyan);color:#04222b;border-color:var(--cyan);font-weight:700}
+  .progress li.done{color:var(--muted)}
+  .progress li.done .n{background:var(--cyan-dim);color:#dff8fd;border-color:var(--cyan-dim)}
+  /* sections */
+  section.stage{margin-top:34px}
+  .stage-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+  .stage-head .step{font-family:var(--mono);color:var(--amber);font-size:13px;letter-spacing:.12em}
+  .stage-head h2{font-size:clamp(21px,3.4vw,28px);margin:0;font-weight:750}
+  .caption{color:var(--muted);font-size:14.5px;max-width:760px;margin:4px 0 16px}
+  .caption .sig{color:var(--cyan)}
+  .story{color:var(--muted);font-size:15px;max-width:760px;margin:2px 0 16px}
+  .story .hl,.ece-card .hl{color:var(--amber);font-weight:700;background:rgba(245,184,61,.10);border-radius:4px;padding:0 4px;white-space:nowrap}
+  @media(max-width:760px){.story .hl,.ece-card .hl{white-space:normal}}
+  .card{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line-soft);border-radius:var(--radius);padding:16px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:760px){.grid2{grid-template-columns:1fr}}
+  .card h3{margin:0 0 4px;font-size:15px;font-weight:650}
+  .card h3 .tag{font-family:var(--mono);font-size:11px;color:var(--amber);border:1px solid #4d3a10;background:#221a06;border-radius:999px;padding:2px 8px;margin-left:8px;vertical-align:2px}
+  .sub{color:var(--faint);font-size:13px;margin:0 0 12px}
+  canvas.view,canvas.editor{display:block;width:100%;height:auto;border-radius:10px;background:#04101f;border:1px solid var(--line-soft)}
+  canvas.editor{touch-action:none;cursor:crosshair}
+  .thumb{display:block;width:100%;height:auto;border-radius:10px;border:1px solid var(--line-soft);background:#04101f}
+  .drop{border:1.5px dashed var(--line);border-radius:10px;padding:10px;text-align:center;color:var(--faint);font-size:13px;margin-top:10px;transition:border-color .15s,color .15s}
+  .drop.over{border-color:var(--cyan);color:var(--cyan)}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}
+  button{font-family:var(--sans);font-size:13.5px;font-weight:600;border-radius:9px;border:1px solid var(--line);background:#10294a;color:var(--ink);padding:8px 14px;cursor:pointer;transition:background .15s,border-color .15s,transform .05s}
+  button:hover{border-color:var(--cyan-dim);background:#14335c}
+  button:active{transform:translateY(1px)}
+  button.primary{background:var(--cyan);border-color:var(--cyan);color:#032530}
+  button.primary:hover{background:#5ee2f5}
+  button.amber{background:var(--amber);border-color:var(--amber);color:var(--amber-ink)}
+  button.amber:hover{background:#ffc95e}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  button.small{padding:6px 10px;font-size:12.5px}
+  label.file{display:inline-block}
+  label.file input{display:none}
+  label.file span{display:inline-block;font-size:13.5px;font-weight:600;border-radius:9px;border:1px solid var(--line);background:#10294a;padding:8px 14px;cursor:pointer}
+  label.file span:hover{border-color:var(--cyan-dim);background:#14335c}
+  .hint{font-size:12.5px;color:var(--faint)}
+  .status{font-family:var(--mono);font-size:12.5px;color:var(--muted);min-height:18px;margin-top:10px}
+  .status .ok{color:var(--good)} .status .warn{color:var(--amber)}
+  /* sliders */
+  .ctl{display:flex;align-items:center;gap:10px;margin:10px 0;flex-wrap:wrap}
+  .ctl label{font-size:13px;color:var(--muted);width:118px;flex:none}
+  .ctl input[type=range]{flex:1;min-width:140px;accent-color:var(--cyan)}
+  .ctl .val{font-family:var(--mono);font-size:13px;color:var(--cyan);width:64px;text-align:right}
+  .switchbtn{display:inline-flex;align-items:center;gap:10px;font-size:13.5px;font-weight:600;color:var(--muted);background:none;border:none;padding:4px 2px;cursor:pointer}
+  .switchbtn .track{width:40px;height:22px;border-radius:999px;background:#14335c;border:1px solid var(--line);position:relative;flex:none;transition:background .15s,border-color .15s}
+  .switchbtn .dot{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#9db4cc;transition:left .15s,background .15s}
+  .switchbtn[aria-checked="true"] .track{background:var(--cyan-dim);border-color:var(--cyan)}
+  .switchbtn[aria-checked="true"] .dot{left:20px;background:var(--cyan)}
+  /* measurements */
+  .meters{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:14px}
+  .meter{border:1px solid var(--line-soft);border-radius:12px;padding:12px 14px;background:#081a30}
+  .meter .k{font-size:11.5px;color:var(--faint);letter-spacing:.06em;text-transform:uppercase}
+  .meter .v{font-family:var(--mono);font-size:24px;color:var(--ink);margin-top:2px}
+  .meter .v small{font-size:12px;color:var(--faint)}
+  .meter.best{border-color:var(--cyan-dim)}
+  .meter.best .v{color:var(--cyan)}
+  .meter .d{font-size:12px;color:var(--muted)}
+  /* tabs */
+  .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  .tabs button[aria-selected=true]{background:var(--cyan);border-color:var(--cyan);color:#032530}
+  select{background:#10294a;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-size:13px;font-family:var(--sans)}
+  /* compare */
+  .compare{position:relative;border-radius:10px;overflow:hidden;border:1px solid var(--line-soft);background:#04101f;line-height:0}
+  .compare canvas{display:block;width:100%;height:auto}
+  .compare .top{position:absolute;inset:0;overflow:hidden}
+  .compare .divider{position:absolute;top:0;bottom:0;width:2px;background:var(--amber);box-shadow:0 0 0 1px rgba(0,0,0,.4);pointer-events:none}
+  .compare .knob{position:absolute;top:50%;width:34px;height:34px;border-radius:50%;background:var(--amber);color:var(--amber-ink);display:grid;place-items:center;font-size:15px;font-weight:800;transform:translate(-50%,-50%);pointer-events:none;box-shadow:0 2px 10px rgba(0,0,0,.5)}
+  .compare input[type=range]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:ew-resize;margin:0}
+  .compare .lbl{position:absolute;top:8px;font-family:var(--mono);font-size:11px;background:rgba(4,16,31,.75);color:var(--ink);padding:3px 8px;border-radius:6px;line-height:1.4}
+  .compare .lbl.l{left:8px}.compare .lbl.r{right:8px}
+  /* signal panel */
+  .sigbtns{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  .sigbtns button[aria-pressed=true]{background:var(--amber);border-color:var(--amber);color:var(--amber-ink)}
+  /* ECE cards */
+  .ece-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;margin-top:14px}
+  .ece-card{border:1px solid var(--line-soft);border-radius:var(--radius);padding:16px;background:linear-gradient(180deg,var(--panel2),var(--panel))}
+  .ece-card .ic{font-family:var(--mono);color:var(--cyan);font-size:12px;letter-spacing:.14em}
+  .ece-card h3{margin:6px 0 6px;font-size:16px}
+  .ece-card p{margin:0;color:var(--muted);font-size:13.5px}
+  .contrast{margin-top:16px;border:1px solid var(--cyan-dim);border-radius:var(--radius);padding:16px 18px;background:#082238;font-size:15px;color:var(--muted)}
+  .contrast b{color:var(--ink)}
+  .contrast .cs{color:var(--faint)} .contrast .ece{color:var(--cyan)}
+  footer{margin-top:44px;border-top:1px solid var(--line-soft);padding-top:16px;color:var(--faint);font-size:13px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .hidden{display:none!important}
+  .spin{display:inline-block;width:12px;height:12px;border:2px solid var(--cyan-dim);border-top-color:var(--cyan);border-radius:50%;animation:sp 0.7s linear infinite;vertical-align:-2px;margin-right:6px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion: reduce){.spin{animation:none} html{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="kicker">ECE 1100 · Discovery Project · "Times New Roman" Tech</div>
+    <h1>Document Photo <span class="thin">Cleanup</span></h1>
+    <p class="byline">by <b>Tianyu Miao</b> — two phone photos of one sheet, turned into one clean, flat scan.</p>
+    <p class="lede">Upload two photos of one document. Out comes one clean, flat, level page.</p>
+  </header>
+
+  <nav class="progress" aria-label="Pipeline progress">
+    <ol>
+      <li id="pg1" class="active"><span class="n">1</span> Capture</li>
+      <li id="pg2"><span class="n">2</span> Correct</li>
+      <li id="pg3"><span class="n">3</span> Stitch &amp; refine</li>
+      <li id="pg4"><span class="n">4</span> Feather &amp; finish</li>
+    </ol>
+  </nav>
+
+  <!-- STAGE 1 -->
+  <section class="stage" id="stage1">
+    <div class="stage-head"><span class="step">STAGE 1</span><h2>Upload two photos</h2></div>
+    <p class="story">Meet our hero: one sheet of paper, lying on a table under a lamp. A phone camera never really “sees” it the way you do. Inside the phone, the sensor is a grid of millions of tiny light buckets. Each bucket catches the light that falls into it and writes down one number — how much light arrived. A photo is nothing more than that grid of numbers. Photograph the page twice, from two spots, and you have counted the same page twice in two different ways. That counting has a name: <span class="hl">sampling</span> — turning the smooth, continuous real world into neat rows of numbers a machine can work with. It is the first idea in all of ECE, and this whole page is built on it.</p>
+    <div class="grid2">
+      <div class="card">
+        <h3>Photo A <span class="tag">LEFT HALF</span></h3>
+        <img class="thumb" id="thumb0" alt="Photo A preview" />
+        <div class="drop" id="drop0">Drop an image here</div>
+        <div class="row">
+          <label class="file"><input type="file" id="file0" accept="image/*" /><span>Upload photo A</span></label>
+          <button id="rot0" type="button">Rotate 90°</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Photo B <span class="tag">RIGHT HALF</span></h3>
+        <img class="thumb" id="thumb1" alt="Photo B preview" />
+        <div class="drop" id="drop1">Drop an image here</div>
+        <div class="row">
+          <label class="file"><input type="file" id="file1" accept="image/*" /><span>Upload photo B</span></label>
+          <button id="rot1" type="button">Rotate 90°</button>
+        </div>
+      </div>
+    </div>
+    <div class="status" id="status1">Demo pair loaded.</div>
+  </section>
+
+  <!-- STAGE 2 -->
+  <section class="stage" id="stage2">
+    <div class="stage-head"><span class="step">STAGE 2</span><h2>Set the corners</h2></div>
+    <p class="story">In each photo the page leans and stretches — the near edge looks long, the far edge short — because the counting grid was tilted when the numbers were taken. So first we hunt down the paper's four true corners (the amber arrows), then we count the page all over again, this time onto a fresh, flat, perfectly square grid. Every cell of the new grid asks one question — “where did I live in the tilted photo?” — and paints itself by blending the numbers stored around that spot. The ECE idea hiding here is <span class="hl">resampling</span>: measuring the same signal again on a better grid, guided by one mapping formula that ties every point of the tilted page to its place on the flat one.</p>
+    <div class="grid2">
+      <div class="card">
+        <h3>Photo A</h3>
+        <canvas class="editor" id="edit0" width="640" height="480"></canvas>
+        <div class="row">
+          <button id="auto0" type="button" class="small">Auto-detect corners</button>
+          <button id="reset0" type="button" class="small">Reset</button>
+          <button id="corr0" type="button" class="small primary">Correct A →</button>
+        </div>
+        <div class="status" id="cstat0"></div>
+        <img class="thumb hidden" id="flat0" alt="Corrected photo A" style="margin-top:10px" />
+      </div>
+      <div class="card">
+        <h3>Photo B</h3>
+        <canvas class="editor" id="edit1" width="640" height="480"></canvas>
+        <div class="row">
+          <button id="auto1" type="button" class="small">Auto-detect corners</button>
+          <button id="reset1" type="button" class="small">Reset</button>
+          <button id="corr1" type="button" class="small primary">Correct B →</button>
+        </div>
+        <div class="status" id="cstat1"></div>
+        <img class="thumb hidden" id="flat1" alt="Corrected photo B" style="margin-top:10px" />
+      </div>
+    </div>
+  </section>
+
+  <!-- STAGE 3 -->
+  <section class="stage" id="stage3">
+    <div class="stage-head"><span class="step">STAGE 3</span><h2>Stitch</h2></div>
+    <p class="story">Now the story has two copies of the same page, and they overlap in the middle — like two witnesses who both saw the same street corner. The page lines them up by matching hundreds of little texture patches that appear in both copies, then double-checks the winning line-up against the real pixels before trusting it. One photo is brighter than the other, because it was taken nearer the lamp: all of its numbers are scaled up, like the same song played louder. So photo B gets one volume knob — a single multiplier, chosen to make the two copies disagree as little as possible where they overlap. That is <span class="hl">calibration</span>. And calibration has a partner: afterwards, the leftover disagreement is measured and printed as a number, before and after refinement. In ECE, an answer you cannot put a number on is only a guess.</p>
+    <div class="card">
+      <h3>Alignment</h3>
+      <div class="row" style="margin-top:0">
+        <button id="alignBtn" type="button" class="primary" disabled>Auto-align</button>
+      </div>
+      <div class="ctl"><label for="dxRange">Offset X (dx)</label><input type="range" id="dxRange" min="-200" max="900" step="1" value="0" disabled /><span class="val" id="dxVal">—</span></div>
+      <div class="ctl"><label for="dyRange">Offset Y (dy)</label><input type="range" id="dyRange" min="-160" max="160" step="1" value="0" disabled /><span class="val" id="dyVal">—</span></div>
+      <div class="ctl"><label for="rotRange">Rotation of B</label><input type="range" id="rotRange" min="-12" max="12" step="0.1" value="0" disabled /><span class="val" id="rotVal">—</span></div>
+      <div class="status" id="alignStatus"></div>
+      <hr style="border:none;border-top:1px solid var(--line-soft);margin:16px 0" />
+      <h3>Gain compensation</h3>
+      <div class="row" style="margin-top:0">
+        <button type="button" class="switchbtn" id="gainToggle" role="switch" aria-checked="true"><span class="track"><span class="dot"></span></span>Apply gain compensation</button>
+        <span class="hint">Gain for B: <span id="gainVal" style="color:var(--cyan)">—</span></span>
+      </div>
+      <hr style="border:none;border-top:1px solid var(--line-soft);margin:16px 0" />
+      <h3>Refine the alignment</h3>
+      <div class="row" style="margin-top:0">
+        <button id="refineBtn" type="button" class="amber" disabled>Run refinement</button>
+      </div>
+      <div class="meters" style="max-width:520px">
+        <div class="meter"><div class="k">RMS before</div><div class="v" id="rmsBefore">—</div><div class="d">gray levels, overlap</div></div>
+        <div class="meter"><div class="k">RMS after</div><div class="v" id="rmsAfter">—</div><div class="d">gray levels, overlap</div></div>
+      </div>
+      <div class="status" id="refineStatus"></div>
+    </div>
+  </section>
+
+  <!-- STAGE 4 -->
+  <section class="stage" id="stage4">
+    <div class="stage-head"><span class="step">STAGE 4</span><h2>The finished document</h2></div>
+    <p class="story">Two copies become one page where they meet — and a meeting line is dangerous. If the brightness jumps there, your eye sees a scar. So the handover happens in two layers: the slow layer, the broad brightness, crosses over gradually on a wide ramp; the fast layer, the sharp letters, crosses quickly on a narrow ramp, so no letter ever appears twice. Splitting a signal into its slow part and its fast part is <span class="hl">filtering</span>, quite possibly the most-used idea in all of ECE. Then the finished page is levelled, its empty borders are trimmed away, and the seam is graded like an exam — one number, the seam error, says how visible the join still is.</p>
+    <div class="card">
+      <canvas class="view" id="resultCanvas" width="960" height="540" style="background:#ffffff"></canvas>
+      <div class="status" id="blendStatus">The finished document appears here once both photos are corrected and aligned.</div>
+
+      <div class="meters" id="seamMeters">
+        <div class="meter" id="m-feather"><div class="k">Seam error · feather</div><div class="v">—</div><div class="d">gray levels</div></div>
+        <div class="meter"><div class="k">Exposure correction · B</div><div class="v" id="m-gain">—</div><div class="d">multiplier for photo B</div></div>
+        <div class="meter"><div class="k">Level correction</div><div class="v" id="m-level">—</div><div class="d">degrees</div></div>
+      </div>
+
+      <div class="row"><button id="downloadBtn" type="button" disabled>Download the document (PNG)</button></div>
+    </div>
+  </section>
+
+  <!-- THE STORY, RETOLD — one page, four small adventures -->
+  <section class="stage" id="why-ece">
+    <div class="stage-head"><span class="step">THE WHOLE STORY</span><h2>One page, four small adventures</h2></div>
+    <p class="story">That is the whole journey, from a sheet of paper under a lamp to one clean scan. Here it is once more, told slowly — four chapters, and hiding inside each one, an idea that electrical and computer engineers use every day.</p>
+    <div class="ece-grid">
+      <div class="ece-card"><div class="ic">CHAPTER 1 · THE COUNTING</div><h3>A page becomes numbers</h3><p>Light bounces off the paper and lands on a grid of tiny buckets — the sensor. Each bucket turns the light it caught into a little pile of electric charge; the charge becomes a voltage; the voltage becomes a number. Nothing inside the phone stores “a page”. It stores millions of these numbers, arranged in rows. Take the photo from somewhere else and every number changes, because the counting happened from a different place. Two photos of one page are two countings of a single thing — and like any two measurements, they never agree perfectly. Everything else in this story is about that disagreement. The ECE idea: <span class="hl">sampling</span>.</p></div>
+      <div class="ece-card"><div class="ic">CHAPTER 2 · THE UN-BENDING</div><h3>A tilted count, counted again</h3><p>A photo taken at an angle squeezes the far side of the page and stretches the near side, and straight lines lean. The cure is not to push the picture around, but to count it again: lay a fresh, square grid over the page, work out where each new cell sits in the old photo, and fill it by blending the numbers stored around that spot. One formula — called a homography — does that pointing for every cell at once, and if the page came out sideways, its own text lines give it away and the page is turned upright. The ECE idea: <span class="hl">resampling</span>.</p></div>
+      <div class="ece-card"><div class="ic">CHAPTER 3 · THE AGREEMENT</div><h3>Two copies learn to agree</h3><p>Hundreds of small texture patches appear in both flat copies, like landmarks two travellers both remember. The page tries many candidate line-ups and keeps the one most landmarks vote for — then, because trust is earned, it checks that winner against the actual pixels. Next, the volume knob: photo B is multiplied by a single number so its brightness matches A's where they overlap, and the winning number is the one that makes the total disagreement smallest. A final pass re-fits everything together and prints the disagreement before and after, as the RMS error, in gray levels. The ECE idea: <span class="hl">calibration</span> — and measuring your error instead of trusting your eyes.</p></div>
+      <div class="ece-card"><div class="ic">CHAPTER 4 · THE HANDOVER</div><h3>The seam disappears, and gets a grade</h3><p>Where the two copies meet, they are not simply glued. The blend is split in two: the slow layer — broad brightness, which changes gently — crosses the seam on a wide, gentle ramp, while the fast layer — the letters, all sharp edges — crosses on a narrow ramp, so no character is ever printed twice. Splitting a signal into its slow part and its fast part, using blurred copies of the page at several sizes, is a filter bank. Then the page is levelled, the empty borders are cut away, and the join is measured: the seam error, the average brightness jump across the meeting line. The ECE idea: <span class="hl">filtering</span>.</p></div>
+    </div>
+    <div class="contrast"><span class="cs"><b>Tell it like a programmer:</b> which code made the picture?</span><br /><span class="ece"><b>Tell it like an ECE engineer:</b> what was the signal, how was it counted, where did the error creep in — and how big is it, in numbers?</span> The seam error at the end of this page is that last question, answered on your own photos.</div>
+  </section>
+
+  <footer>
+    <span>Document Photo Cleanup · ECE 1100 Discovery Project · Tianyu Miao, "Times New Roman" Tech</span>
+    <span>Built for flat documents. All processing runs locally in your browser — photos never leave this page.</span>
+  </footer>
+</div>
+
+<script>
+"use strict";
+/* ================= utilities ================= */
+const $ = id => document.getElementById(id);
+const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+const MAXDIM = 1100;
+
+function canvasOf(w,h){ const c=document.createElement("canvas"); c.width=w; c.height=h; return c; }
+function grayOf(canvas){
+  const w=canvas.width,h=canvas.height,ctx=canvas.getContext("2d",{willReadFrequently:true});
+  const d=ctx.getImageData(0,0,w,h).data, g=new Float32Array(w*h);
+  for(let i=0;i<w*h;i++){ g[i]=0.299*d[i*4]+0.587*d[i*4+1]+0.114*d[i*4+2]; }
+  return {g,w,h};
+}
+function sampleBilinear(g,w,h,x,y){
+  if(x<0||y<0||x>w-1||y>h-1) return -1;
+  const x0=Math.floor(x),y0=Math.floor(y),fx=x-x0,fy=y-y0;
+  const i=y0*w+x0;
+  const a=g[i],b=g[i+1],c=g[i+w],dd=g[i+w+1];
+  return a*(1-fx)*(1-fy)+b*fx*(1-fy)+c*(1-fx)*fy+dd*fx*fy;
+}
+/* Solve 8x8 linear system (Gaussian elimination with partial pivoting) */
+function solveLin(A,b){
+  const n=b.length, M=A.map((r,i)=>r.concat(b[i]));
+  for(let col=0;col<n;col++){
+    let piv=col; for(let r=col+1;r<n;r++) if(Math.abs(M[r][col])>Math.abs(M[piv][col])) piv=r;
+    if(Math.abs(M[piv][col])<1e-12) return null;
+    const t=M[col]; M[col]=M[piv]; M[piv]=t;
+    for(let r=0;r<n;r++){ if(r===col) continue; const f=M[r][col]/M[col][col];
+      for(let k=col;k<=n;k++) M[r][k]-=f*M[col][k]; }
+  }
+  return M.map((r,i)=>r[n]/r[i]);
+}
+/* Homography mapping src points -> dst points (DLT, h33=1) */
+function homography(src,dst){
+  const A=[],b=[];
+  for(let i=0;i<4;i++){
+    const x=src[i].x,y=src[i].y,u=dst[i].x,v=dst[i].y;
+    A.push([x,y,1,0,0,0,-u*x,-u*y]); b.push(u);
+    A.push([0,0,0,x,y,1,-v*x,-v*y]); b.push(v);
+  }
+  const h=solveLin(A,b); if(!h) return null;
+  return [h[0],h[1],h[2],h[3],h[4],h[5],h[6],h[7],1];
+}
+function applyH(H,x,y){ const w=H[6]*x+H[7]*y+H[8]; return {x:(H[0]*x+H[1]*y+H[2])/w, y:(H[3]*x+H[4]*y+H[5])/w}; }
+/* Warp: output pixel (u,v) in rect [0..ow]x[0..oh] maps through quad->rect inverse.
+   We compute H from output rect corners to source quad, then sample source. */
+function warpFromQuad(srcCanvas, quad, ow, oh){
+  const rect=[{x:0,y:0},{x:ow,y:0},{x:ow,y:oh},{x:0,y:oh}];
+  const H=homography(rect, quad); // out coords -> src coords
+  const out=canvasOf(ow,oh), octx=out.getContext("2d");
+  const sctx=srcCanvas.getContext("2d",{willReadFrequently:true});
+  const sd=sctx.getImageData(0,0,srcCanvas.width,srcCanvas.height);
+  const img=octx.createImageData(ow,oh), od=img.data;
+  const sw=srcCanvas.width, sh=srcCanvas.height, sdata=sd.data;
+  for(let v=0;v<oh;v++){
+    for(let u=0;u<ow;u++){
+      const p=applyH(H,u,v), x=p.x, y=p.y, o=(v*ow+u)*4;
+      if(x<0||y<0||x>sw-1||y>sh-1){ od[o+3]=0; continue; }
+      const x0=Math.floor(x),y0=Math.floor(y),fx=x-x0,fy=y-y0;
+      for(let ch=0;ch<3;ch++){
+        const i0=(y0*sw+x0)*4+ch, i1=(y0*sw+x0+1)*4+ch, i2=((y0+1)*sw+x0)*4+ch, i3=((y0+1)*sw+x0+1)*4+ch;
+        od[o+ch]=sdata[i0]*(1-fx)*(1-fy)+sdata[i1]*fx*(1-fy)+sdata[i2]*(1-fx)*fy+sdata[i3]*fx*fy;
+      }
+      od[o+3]=255;
+    }
+  }
+  octx.putImageData(img,0,0); return out;
+}
+/* Warp a flat source into a quad on a target canvas (used to build the demo photos) */
+function warpIntoQuad(srcCanvas, target, quad){
+  const rect=[{x:0,y:0},{x:srcCanvas.width,y:0},{x:srcCanvas.width,y:srcCanvas.height},{x:0,y:srcCanvas.height}];
+  const H=homography(quad, rect); // target coords -> src coords
+  const tctx=target.getContext("2d",{willReadFrequently:true});
+  const img=tctx.getImageData(0,0,target.width,target.height), td=img.data;
+  const sctx=srcCanvas.getContext("2d",{willReadFrequently:true});
+  const sd=sctx.getImageData(0,0,srcCanvas.width,srcCanvas.height).data;
+  const sw=srcCanvas.width, sh=srcCanvas.height;
+  for(let v=0;v<target.height;v++) for(let u=0;u<target.width;u++){
+    const p=applyH(H,u,v), x=p.x, y=p.y, o=(v*target.width+u)*4;
+    if(x<0||y<0||x>sw-1||y>sh-1) continue;
+    const x0=Math.floor(x),y0=Math.floor(y),fx=x-x0,fy=y-y0;
+    for(let ch=0;ch<3;ch++){
+      const i0=(y0*sw+x0)*4+ch,i1=(y0*sw+x0+1)*4+ch,i2=((y0+1)*sw+x0)*4+ch,i3=((y0+1)*sw+x0+1)*4+ch;
+      td[o+ch]=sd[i0]*(1-fx)*(1-fy)+sd[i1]*fx*(1-fy)+sd[i2]*(1-fx)*fy+sd[i3]*fx*fy;
+    }
+    td[o+3]=255;
+  }
+  tctx.putImageData(img,0,0);
+}
+function scaleCanvas(src,maxDim){
+  const m=Math.max(src.width,src.height); if(m<=maxDim) return src;
+  const s=maxDim/m, c=canvasOf(Math.round(src.width*s),Math.round(src.height*s));
+  c.getContext("2d").drawImage(src,0,0,c.width,c.height); return c;
+}
+function drawPlaceholder(cv,text){
+  const ctx=cv.getContext("2d"); ctx.fillStyle="#0a1c36"; ctx.fillRect(0,0,cv.width,cv.height);
+  ctx.strokeStyle="#1c3a5e"; for(let x=0;x<cv.width;x+=36){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,cv.height);ctx.stroke();}
+  for(let y=0;y<cv.height;y+=36){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(cv.width,y);ctx.stroke();}
+  ctx.fillStyle="#6f87a3"; ctx.font="15px 'Times New Roman',Times,serif"; ctx.textAlign="center";
+  ctx.fillText(text,cv.width/2,cv.height/2);
+}
+</script>
+<script>
+"use strict";
+/* ================= state ================= */
+const photos=[null,null]; // {canvas, corners:[{x,y}x4] in image px, corrected:canvas|null}
+let gainFit=1, finalDoc=null, lastLevel=0;
+
+function setProgress(){
+  const done=[true, !!(photos[0]&&photos[0].corrected&&photos[1]&&photos[1].corrected), align.ready, !!finalDoc];
+  for(let i=1;i<=4;i++){ const el=$("pg"+i); el.classList.toggle("done", !!done[i-1] && i<4 || (i===4&&!!finalDoc));
+    el.classList.toggle("active", (i===1&&!done[1])||(i===2&&!done[1])||(i===3&&done[1]&&!done[2])||(i===4&&done[2])); }
+}
+
+/* ================= demo pair ================= */
+function drawMaster(){
+  const m=canvasOf(1320,1000), x=m.getContext("2d");
+  x.fillStyle="#fdfdf8"; x.fillRect(0,0,1320,1000);
+  x.fillStyle="#14335c"; x.fillRect(0,0,1320,86);
+  x.fillStyle="#ffffff"; x.font='700 40px "Times New Roman",serif'; x.fillText("Signals in Print — a short reading",48,56);
+  x.fillStyle="#222"; x.font='21px "Times New Roman",serif';
+  const col=(cx,w,lines)=>{ let y=140; for(const t of lines){ x.fillText(t,cx,y,w); y+=34; } };
+  const L=["A sensor does not see a page.","It samples light, point by point,","on a fixed grid of cells.","Each cell collects photons and","turns them into charge, then a","voltage, then a number.","What we call a photo is that","grid of numbers — nothing more,","and nothing less.","Sampling has rules. Sample too","sparsely and fine detail folds","back as false patterns. Sample","on a tilted grid and straight","lines lean. The page did not","change. The grid did."];
+  const R=["Correction is a change of grid.","We re-evaluate the signal on a","flat rectangle and interpolate","between the samples we have.","Two photos of one page are two","samplings of one signal. Where","they overlap, they should agree.","When they do not, the mismatch","is data: a gain error, an offset","error, a seam waiting to be","measured. Blend the bands at","their own scales, then read the","residual. That number is the","honest score of the whole chain."];
+  col(44,600,L); col(700,580,R);
+  x.fillStyle="#b9c6d4"; x.fillRect(672,120,3,800);
+  x.fillStyle="#8a97a5"; x.font='16px "Times New Roman",serif';
+  x.fillText("page 1",300,962); x.fillText("page 2",980,962);
+  x.strokeStyle="#d4dbe2"; x.strokeRect(24,110,1272,830);
+  return m;
+}
+function cropMaster(master,sx,bright){
+  const c=canvasOf(760,1000), x=c.getContext("2d");
+  x.drawImage(master,sx,0,760,1000,0,0,760,1000);
+  if(bright!==1){ const img=x.getImageData(0,0,760,1000), d=img.data;
+    for(let i=0;i<d.length;i+=4){ d[i]=clamp(d[i]*bright+6,0,255); d[i+1]=clamp(d[i+1]*bright+6,0,255); d[i+2]=clamp(d[i+2]*bright+10,0,255); }
+    x.putImageData(img,0,0); }
+  return c;
+}
+function makeDemoPhoto(crop,quad){
+  const p=canvasOf(820,1060), x=p.getContext("2d");
+  const gr=x.createLinearGradient(0,0,820,1060); gr.addColorStop(0,"#233246"); gr.addColorStop(1,"#131e2e");
+  x.fillStyle=gr; x.fillRect(0,0,820,1060);
+  x.fillStyle="rgba(255,255,255,0.05)";
+  for(let i=0;i<320;i++){ x.fillRect(Math.random()*820,Math.random()*1060,2,2); }
+  x.fillStyle="rgba(0,0,0,0.35)";
+  x.beginPath(); x.moveTo(quad[0].x+14,quad[0].y+18); for(let i=1;i<4;i++) x.lineTo(quad[i].x+14,quad[i].y+18); x.closePath(); x.fill();
+  warpIntoQuad(crop,p,quad);
+  return p;
+}
+function loadDemo(){
+  const master=drawMaster();
+  const quads=[
+    [{x:90,y:90},{x:700,y:65},{x:725,y:905},{x:65,y:930}],
+    [{x:120,y:70},{x:745,y:105},{x:715,y:930},{x:85,y:900}]
+  ];
+  const crops=[cropMaster(master,0,1.0), cropMaster(master,560,0.84)];
+  for(let i=0;i<2;i++){
+    photos[i]={canvas:makeDemoPhoto(crops[i],quads[i]), corners:quads[i].map(p=>({x:p.x,y:p.y})), corrected:null};
+    $("thumb"+i).src=photos[i].canvas.toDataURL();
+    setupEditor(i);
+  }
+  setProgress();
+}
+
+/* ================= upload / rotate ================= */
+function setPhoto(i,canvas){
+  canvas=scaleCanvas(canvas,MAXDIM);
+  photos[i]={canvas, corners:defaultCorners(canvas), corrected:null};
+  $("thumb"+i).src=canvas.toDataURL();
+  $("flat"+i).classList.add("hidden"); $("cstat"+i).textContent="";
+  setupEditor(i); invalidateStitch();
+  $("status1").innerHTML="Photo "+(i===0?"A":"B")+" loaded.";
+  setProgress();
+  /* straight in: detect the corners and correct immediately.
+     The arrows stay draggable — adjust and press Correct again if needed. */
+  autoDetect(i);
+  correctPhoto(i);
+}
+function defaultCorners(c){ const mx=c.width*0.07,my=c.height*0.07;
+  return [{x:mx,y:my},{x:c.width-mx,y:my},{x:c.width-mx,y:c.height-my},{x:mx,y:c.height-my}]; }
+function handleFile(i,file){
+  if(!file||!file.type.startsWith("image/")) return;
+  const url=URL.createObjectURL(file), img=new Image();
+  img.onload=()=>{ const c=canvasOf(img.naturalWidth,img.naturalHeight);
+    c.getContext("2d").drawImage(img,0,0); URL.revokeObjectURL(url); setPhoto(i,c); };
+  img.src=url;
+}
+for(let i=0;i<2;i++){
+  $("file"+i).addEventListener("change",e=>{ handleFile(i,e.target.files[0]); e.target.value=""; });
+  const dz=$("drop"+i);
+  ["dragover","dragenter"].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.add("over");}));
+  ["dragleave","drop"].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.remove("over");}));
+  dz.addEventListener("drop",e=>handleFile(i,e.dataTransfer.files[0]));
+  const card=dz.closest(".card");
+  card.addEventListener("dragover",e=>e.preventDefault());
+  card.addEventListener("drop",e=>{ e.preventDefault(); handleFile(i,e.dataTransfer.files[0]); });
+  $("rot"+i).addEventListener("click",()=>{
+    const s=photos[i].canvas, c=canvasOf(s.height,s.width), x=c.getContext("2d");
+    x.translate(c.width/2,c.height/2); x.rotate(Math.PI/2); x.drawImage(s,-s.width/2,-s.height/2);
+    setPhoto(i,c);
+  });
+}
+
+/* ================= corner editor ================= */
+const editors=[null,null];
+function setupEditor(i){
+  const cv=$("edit"+i), src=photos[i].canvas;
+  const dispW=Math.min(640,src.width), scale=dispW/src.width;
+  cv.width=dispW; cv.height=Math.round(src.height*scale);
+  editors[i]={scale, drag:-1};
+  drawEditor(i);
+}
+function drawEditor(i){
+  const cv=$("edit"+i), ctx=cv.getContext("2d"), ph=photos[i], s=editors[i].scale;
+  ctx.drawImage(ph.canvas,0,0,cv.width,cv.height);
+  const pts=ph.corners.map(p=>({x:p.x*s,y:p.y*s}));
+  ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y); for(let k=1;k<4;k++) ctx.lineTo(pts[k].x,pts[k].y); ctx.closePath();
+  ctx.fillStyle="rgba(45,212,238,0.10)"; ctx.fill();
+  ctx.strokeStyle="#2dd4ee"; ctx.lineWidth=2; ctx.stroke();
+  const arrows=["↖","↗","↘","↙"];
+  pts.forEach((p,k)=>{
+    ctx.beginPath(); ctx.arc(p.x,p.y,13,0,Math.PI*2);
+    ctx.fillStyle="#f5b83d"; ctx.fill(); ctx.lineWidth=2.5; ctx.strokeStyle="#0b1c34"; ctx.stroke();
+    ctx.fillStyle="#0b1c34"; ctx.font="700 14px 'Times New Roman',Times,serif"; ctx.textAlign="center"; ctx.textBaseline="middle";
+    ctx.fillText(arrows[k],p.x,p.y+1);
+  });
+}
+function editorPos(i,e){
+  const cv=$("edit"+i), r=cv.getBoundingClientRect();
+  return { x:(e.clientX-r.left)*cv.width/r.width/editors[i].scale,
+           y:(e.clientY-r.top)*cv.height/r.height/editors[i].scale };
+}
+for(let i=0;i<2;i++){
+  const cv=$("edit"+i);
+  cv.addEventListener("pointerdown",e=>{
+    const p=editorPos(i,e); let best=-1,bd=1e9;
+    photos[i].corners.forEach((c,k)=>{ const d=(c.x-p.x)**2+(c.y-p.y)**2; if(d<bd){bd=d;best=k;} });
+    if(best>=0 && bd < (34/editors[i].scale)**2){ editors[i].drag=best; cv.setPointerCapture(e.pointerId);
+      photos[i].corners[best]={x:clamp(p.x,0,photos[i].canvas.width),y:clamp(p.y,0,photos[i].canvas.height)}; drawEditor(i); }
+  });
+  cv.addEventListener("pointermove",e=>{
+    if(editors[i].drag<0) return; const p=editorPos(i,e);
+    photos[i].corners[editors[i].drag]={x:clamp(p.x,0,photos[i].canvas.width),y:clamp(p.y,0,photos[i].canvas.height)};
+    drawEditor(i);
+  });
+  const end=()=>{ editors[i].drag=-1; };
+  cv.addEventListener("pointerup",end); cv.addEventListener("pointercancel",end);
+  $("reset"+i).addEventListener("click",()=>{ photos[i].corners=defaultCorners(photos[i].canvas); drawEditor(i);
+    $("cstat"+i).textContent="Corners reset to a plain inset rectangle."; });
+  $("auto"+i).addEventListener("click",()=>autoDetect(i));
+  $("corr"+i).addEventListener("click",()=>correctPhoto(i));
+}
+/* ================= corner auto-detection =================
+   The old detector thresholded at (min+max)/2 of the whole frame. Under a
+   lamp gradient the far half of the paper falls below that line, so the
+   "page" it found was only the bright half and the corners landed in the
+   middle of the sheet — the warp then cut the page in half.
+   This detector instead:
+     1. splits paper from background with an Otsu threshold — the valley
+        between the dark floor and the paper, wherever the light put it;
+     2. fills the ink holes and keeps the largest connected region: the
+        sheet itself, not a bright patch of it;
+     3. simplifies that region's convex hull to four corners, pruning extra
+        vertices by a score that rewards covering the region and running
+        along its real boundary — a chord that slices through the page
+        scores badly on both counts;
+     4. refuses to install anything that fails its checks. A failed
+        detection leaves the corners exactly where they were, so the worst
+        case is the corners the user already had, never a quad through the
+        middle of the page. */
+function labelRegions(mask,w,h){ /* 8-connected labelling of a 0/1 mask */
+  const lab=new Int32Array(w*h), stack=new Int32Array(w*h);
+  let n=0;
+  for(let s=0;s<w*h;s++){
+    if(!mask[s]||lab[s]) continue;
+    n++; let sp=0; stack[sp++]=s; lab[s]=n;
+    while(sp){
+      const p=stack[--sp], px=p%w, py=(p/w)|0;
+      for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
+        if(!dx&&!dy) continue;
+        const qx=px+dx, qy=py+dy;
+        if(qx<0||qy<0||qx>=w||qy>=h) continue;
+        const q=qy*w+qx;
+        if(mask[q]&&!lab[q]){ lab[q]=n; stack[sp++]=q; }
+      }
+    }
+  }
+  return {lab, n};
+}
+function chamferDT(src,w,h){ /* distance to the nearest source pixel (src=1) */
+  const d=new Float32Array(w*h), INF=1e6, S2=Math.SQRT2;
+  for(let i=0;i<w*h;i++) d[i]=src[i]?0:INF;
+  for(let y=0;y<h;y++) for(let x=0;x<w;x++){
+    const i=y*w+x; if(!d[i]) continue;
+    let m=d[i];
+    if(x>0) m=Math.min(m,d[i-1]+1);
+    if(y>0){ m=Math.min(m,d[i-w]+1); if(x>0) m=Math.min(m,d[i-w-1]+S2); if(x<w-1) m=Math.min(m,d[i-w+1]+S2); }
+    d[i]=m;
+  }
+  for(let y=h-1;y>=0;y--) for(let x=w-1;x>=0;x--){
+    const i=y*w+x; if(!d[i]) continue;
+    let m=d[i];
+    if(x<w-1) m=Math.min(m,d[i+1]+1);
+    if(y<h-1){ m=Math.min(m,d[i+w]+1); if(x<w-1) m=Math.min(m,d[i+w+1]+S2); if(x>0) m=Math.min(m,d[i+w-1]+S2); }
+    d[i]=m;
+  }
+  return d;
+}
+function convexHull(pts){ /* monotone chain: ring of [x,y], no duplicate end */
+  const P=pts.slice().sort((a,b)=>a[0]-b[0]||a[1]-b[1]);
+  const cross=(o,a,b)=>(a[0]-o[0])*(b[1]-o[1])-(a[1]-o[1])*(b[0]-o[0]);
+  const lower=[], upper=[];
+  for(const p of P){ while(lower.length>=2&&cross(lower[lower.length-2],lower[lower.length-1],p)<=0) lower.pop(); lower.push(p); }
+  for(let i=P.length-1;i>=0;i--){ const p=P[i]; while(upper.length>=2&&cross(upper[upper.length-2],upper[upper.length-1],p)<=0) upper.pop(); upper.push(p); }
+  lower.pop(); upper.pop();
+  return lower.concat(upper);
+}
+function dpSimplify(chain,eps){ /* Douglas-Peucker on an open chain of [x,y] */
+  const keep=new Uint8Array(chain.length); keep[0]=keep[chain.length-1]=1;
+  const stack=[[0,chain.length-1]];
+  while(stack.length){
+    const ab=stack.pop(), a=ab[0], b=ab[1];
+    if(b<=a+1) continue;
+    const A=chain[a], B=chain[b], dx=B[0]-A[0], dy=B[1]-A[1], L=Math.hypot(dx,dy);
+    let bi=-1, bd=-1;
+    for(let i=a+1;i<b;i++){
+      const p=chain[i];
+      const d=L<1e-9?Math.hypot(p[0]-A[0],p[1]-A[1]):Math.abs(dx*(p[1]-A[1])-dy*(p[0]-A[0]))/L;
+      if(d>bd){ bd=d; bi=i; }
+    }
+    if(bd>eps){ keep[bi]=1; stack.push([a,bi],[bi,b]); }
+  }
+  return chain.filter((_,i)=>keep[i]);
+}
+function polyCoverage(poly,xs,ys){ /* share of sample points inside a convex polygon */
+  const k=poly.length;
+  let inside=0;
+  for(let s=0;s<xs.length;s++){
+    const x=xs[s], y=ys[s];
+    let pos=false, neg=false;
+    for(let e=0;e<k;e++){
+      const a=poly[e], b=poly[(e+1)%k];
+      const cr=(b[0]-a[0])*(y-a[1])-(b[1]-a[1])*(x-a[0]);
+      if(cr>0) pos=true; else if(cr<0) neg=true;
+      if(pos&&neg) break;
+    }
+    if(!(pos&&neg)) inside++;
+  }
+  return inside/xs.length;
+}
+function polyArea(poly){
+  let a2=0;
+  for(let e=0;e<poly.length;e++){ const a=poly[e], b=poly[(e+1)%poly.length]; a2+=a[0]*b[1]-b[0]*a[1]; }
+  return Math.abs(a2)/2;
+}
+function quadScore(poly,S){
+  /* coverage of the paper region, minus 1.5x the polygon area that falls
+     outside the region, plus 0.8x the share of edge samples that run along
+     the region's real boundary (prox = distance to the opposite class). */
+  const cov=polyCoverage(poly,S.xs,S.ys);
+  const outside=Math.max(0, polyArea(poly)-cov*S.compArea)/S.compArea;
+  let sup=0, tot=0;
+  for(let e=0;e<poly.length;e++){
+    const a=poly[e], b=poly[(e+1)%poly.length], L=Math.hypot(b[0]-a[0],b[1]-a[1]);
+    const steps=Math.max(2,Math.round(L/6));
+    for(let t=0;t<=steps;t++){
+      const xi=Math.round(a[0]+(b[0]-a[0])*t/steps), yi=Math.round(a[1]+(b[1]-a[1])*t/steps);
+      if(xi<0||yi<0||xi>=S.w||yi>=S.h) continue;
+      tot++; if(S.prox[yi*S.w+xi]<=3) sup++;
+    }
+  }
+  return cov - 1.5*outside + 0.8*(tot?sup/tot:0);
+}
+function detectPageQuad(src){
+  const small=scaleCanvas(src,420), scX=src.width/small.width, scY=src.height/small.height;
+  const w=small.width, h=small.height;
+  let g=grayOf(small).g;
+  g=blur5(g,w,h);
+  const thr=otsuThr(g);
+  const mask=new Uint8Array(w*h);
+  for(let i=0;i<w*h;i++) mask[i]=g[i]>thr?1:0;
+  /* fill ink holes: a dark region that never touches the frame border is
+     inside the page, not background */
+  const dark=new Uint8Array(w*h);
+  for(let i=0;i<w*h;i++) dark[i]=mask[i]?0:1;
+  const dl=labelRegions(dark,w,h);
+  const borderLab=new Set();
+  for(let x=0;x<w;x++){ borderLab.add(dl.lab[x]); borderLab.add(dl.lab[(h-1)*w+x]); }
+  for(let y=0;y<h;y++){ borderLab.add(dl.lab[y*w]); borderLab.add(dl.lab[y*w+w-1]); }
+  const filled=new Uint8Array(w*h);
+  for(let i=0;i<w*h;i++) filled[i]=(mask[i]||!borderLab.has(dl.lab[i]))?1:0;
+  const fl=labelRegions(filled,w,h);
+  if(!fl.n) return null;
+  const areas=new Float64Array(fl.n+1);
+  for(let i=0;i<w*h;i++) if(filled[i]) areas[fl.lab[i]]++;
+  let best=1; for(let l=2;l<=fl.n;l++) if(areas[l]>areas[best]) best=l;
+  const compArea=areas[best];
+  if(compArea<0.10*w*h) return null;
+  const comp=new Uint8Array(w*h), invC=new Uint8Array(w*h), bpts=[];
+  for(let y=0;y<h;y++) for(let x=0;x<w;x++){
+    const i=y*w+x, on=fl.lab[i]===best;
+    comp[i]=on?1:0; invC[i]=on?0:1;
+    if(on&&(x===0||y===0||x===w-1||y===h-1||fl.lab[i-1]!==best||fl.lab[i+1]!==best||fl.lab[i-w]!==best||fl.lab[i+w]!==best)) bpts.push([x,y]);
+  }
+  const hull=convexHull(bpts);
+  if(hull.length<4) return null;
+  let peri=0;
+  for(let e=0;e<hull.length;e++){ const a=hull[e], b=hull[(e+1)%hull.length]; peri+=Math.hypot(b[0]-a[0],b[1]-a[1]); }
+  const dtA=chamferDT(invC,w,h), dtB=chamferDT(comp,w,h);
+  const prox=new Float32Array(w*h);
+  for(let i=0;i<w*h;i++) prox[i]=comp[i]?dtA[i]:dtB[i];
+  const stride=Math.max(1,Math.round(compArea/20000)), xs=[], ys=[];
+  let seen=0;
+  for(let y=0;y<h;y++) for(let x=0;x<w;x++) if(comp[y*w+x]){ if(seen++%stride===0){ xs.push(x); ys.push(y); } }
+  const S={xs,ys,compArea,prox,w,h};
+  let si=0;
+  for(let e=1;e<hull.length;e++) if(hull[e][0]+hull[e][1]<hull[si][0]+hull[si][1]) si=e;
+  const ring=hull.slice(si).concat(hull.slice(0,si));
+  const chain=ring.concat([ring[0]]);
+  let quad=null;
+  for(const frac of [0.02,0.012,0.03,0.008,0.05,0.08]){
+    let poly=dpSimplify(chain,frac*peri).slice(0,-1);
+    if(poly.length<4||poly.length>8) continue;
+    while(poly.length>4){
+      let bi=-1, bs=-Infinity;
+      for(let v=0;v<poly.length;v++){
+        const cand=poly.filter((_,j)=>j!==v), s=quadScore(cand,S);
+        if(s>bs){ bs=s; bi=v; }
+      }
+      poly=poly.filter((_,j)=>j!==bi);
+    }
+    quad=poly; break;
+  }
+  if(!quad){ /* fallback: the region's own extremes — still real boundary points */
+    let tl=hull[0], tr=hull[0], br=hull[0], bl=hull[0];
+    for(const p of hull){
+      if(p[0]+p[1]<tl[0]+tl[1]) tl=p;
+      if(p[0]+p[1]>br[0]+br[1]) br=p;
+      if(p[0]-p[1]>tr[0]-tr[1]) tr=p;
+      if(p[0]-p[1]<bl[0]-bl[1]) bl=p;
+    }
+    quad=[tl,tr,br,bl];
+  }
+  const sums=quad.map(p=>p[0]+p[1]), diffs=quad.map(p=>p[0]-p[1]);
+  const ordered=[quad[sums.indexOf(Math.min.apply(null,sums))],
+                 quad[diffs.indexOf(Math.max.apply(null,diffs))],
+                 quad[sums.indexOf(Math.max.apply(null,sums))],
+                 quad[diffs.indexOf(Math.min.apply(null,diffs))]];
+  if(new Set(ordered).size<4) return null;
+  /* gates: the quad must genuinely be the region's outline — most of the
+     region inside it, comparable area, sane edges and angles */
+  if(polyCoverage(ordered,xs,ys)<0.78) return null;
+  const qa=polyArea(ordered);
+  if(qa<0.6*compArea||qa>1.45*compArea) return null;
+  for(let e=0;e<4;e++){
+    const a=ordered[e], b=ordered[(e+1)%4], c=ordered[(e+3)%4];
+    if(Math.hypot(b[0]-a[0],b[1]-a[1])<0.10*Math.max(w,h)) return null;
+    const v1=[b[0]-a[0],b[1]-a[1]], v2=[c[0]-a[0],c[1]-a[1]];
+    const cosang=(v1[0]*v2[0]+v1[1]*v2[1])/((Math.hypot(v1[0],v1[1])||1)*(Math.hypot(v2[0],v2[1])||1));
+    const ang=Math.acos(clamp(cosang,-1,1))*180/Math.PI;
+    if(ang<25||ang>175) return null;
+  }
+  /* nudge each corner a couple of small pixels outward, so the threshold's
+     slight shrink does not shave the paper's edge */
+  const cx=(ordered[0][0]+ordered[1][0]+ordered[2][0]+ordered[3][0])/4;
+  const cy=(ordered[0][1]+ordered[1][1]+ordered[2][1]+ordered[3][1])/4;
+  return ordered.map(p=>{
+    const dx=p[0]-cx, dy=p[1]-cy, L=Math.hypot(dx,dy)||1;
+    return { x:clamp((p[0]+dx/L*2)*scX,0,src.width-1), y:clamp((p[1]+dy/L*2)*scY,0,src.height-1) };
+  });
+}
+function autoDetect(i){
+  const quad=detectPageQuad(photos[i].canvas);
+  if(!quad){
+    $("cstat"+i).textContent="Auto-detect found no clear page, so the corners were left as they are. Drag the arrows onto the paper's corners by hand.";
+    return;
+  }
+  photos[i].corners=quad;
+  drawEditor(i);
+  $("cstat"+i).innerHTML="<span class='warn'>Corners auto-detected.</span> Drag an arrow if one sits off the paper, then press Correct again.";
+}
+/* ================= reading orientation =================
+   A corrected page can still sit sideways (the corners say where the paper
+   is, not which way the text runs). Text lines give the axis away: with an
+   Otsu ink mask, the row-projection of a page whose lines run horizontally
+   has several times the variance of its column-projection, and the ratio
+   inverts when the lines run vertically (measured 4.1–5.0 upright vs
+   0.20–0.24 sideways on real pages). Only that axis decision is automated;
+   it needs a decisive ratio, and inconclusive evidence leaves the page
+   exactly as the user corrected it. */
+function rotateCanvas(src,deg){
+  if(deg===180){ const c=canvasOf(src.width,src.height), x=c.getContext("2d");
+    x.translate(src.width,src.height); x.rotate(Math.PI); x.drawImage(src,0,0); return c; }
+  const c=canvasOf(src.height,src.width), x=c.getContext("2d");
+  if(deg<0){ x.translate(0,c.height); x.rotate(-Math.PI/2); }
+  else { x.translate(c.width,0); x.rotate(Math.PI/2); }
+  x.drawImage(src,0,0); return c;
+}
+function varianceOf(a){ let m=0; for(const v of a) m+=v; m/=a.length;
+  let s=0; for(const v of a) s+=(v-m)*(v-m); return s/a.length; }
+function otsuThr(g){
+  const hist=new Float64Array(256); let n=0;
+  for(let i=0;i<g.length;i+=3){ hist[clamp(Math.round(g[i]),0,255)]++; n++; }
+  let sum=0; for(let t=0;t<256;t++) sum+=t*hist[t];
+  let sumB=0,wB=0,best=-1,thr=127;
+  for(let t=0;t<256;t++){ wB+=hist[t]; if(!wB) continue; const wF=n-wB; if(!wF) break;
+    sumB+=t*hist[t]; const mB=sumB/wB, mF=(sum-sumB)/wF, v=wB*wF*(mB-mF)*(mB-mF);
+    if(v>best){ best=v; thr=t; } }
+  return thr;
+}
+function orientStats(cv){
+  const {g,w,h}=grayOf(scaleCanvas(cv,520));
+  const thr=otsuThr(g), rp=new Float64Array(h), cp=new Float64Array(w);
+  let ink=0;
+  for(let y=0;y<h;y++) for(let x=0;x<w;x++) if(g[y*w+x]<thr){ rp[y]++; cp[x]++; ink++; }
+  if(ink<g.length*0.002) return {vr:1, vc:1}; /* essentially blank: no evidence, no opinion */
+  return {vr:varianceOf(rp), vc:varianceOf(cp)};
+}
+function autoOrient(ph){
+  let cv=ph.corrected;
+  const st=orientStats(cv);
+  if(st.vc>2.2*st.vr){
+    ph.corrected=rotateCanvas(cv,-90);
+    return " Quarter-turned so the text runs horizontally.";
+  }
+  return "";
+}
+/* Snap the four placed corners to a true rectangle: opposite edges are
+   averaged, the vertical axis is forced perpendicular to the horizontal
+   one, and the corners are rebuilt around the quad centre. The warp then
+   targets this rectangle — never the raw quad — so the output cannot
+   bulge, cave in, or stay trapezoid. */
+function rectifiedQuad(q){
+  const d=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+  const w=(d(q[0],q[1])+d(q[3],q[2]))/2, h=(d(q[0],q[3])+d(q[1],q[2]))/2;
+  const cx=(q[0].x+q[1].x+q[2].x+q[3].x)/4, cy=(q[0].y+q[1].y+q[2].y+q[3].y)/4;
+  let hx=(q[1].x-q[0].x)/d(q[0],q[1])+(q[2].x-q[3].x)/d(q[3],q[2]);
+  let hy=(q[1].y-q[0].y)/d(q[0],q[1])+(q[2].y-q[3].y)/d(q[3],q[2]);
+  const hl=Math.hypot(hx,hy)||1; hx/=hl; hy/=hl;
+  let vx=-hy, vy=hx;
+  const avx=((q[3].x-q[0].x)+(q[2].x-q[1].x))/2, avy=((q[3].y-q[0].y)+(q[2].y-q[1].y))/2;
+  if(vx*avx+vy*avy<0){ vx=-vx; vy=-vy; }
+  const hw=w/2, hh=h/2;
+  return { w, h, quad:[
+    {x:cx-hx*hw-vx*hh, y:cy-hy*hw-vy*hh},
+    {x:cx+hx*hw-vx*hh, y:cy+hy*hw-vy*hh},
+    {x:cx+hx*hw+vx*hh, y:cy+hy*hw+vy*hh},
+    {x:cx-hx*hw+vx*hh, y:cy-hy*hw+vy*hh} ] };
+}
+function correctPhoto(i){
+  const ph=photos[i], q=ph.corners;
+  const R=rectifiedQuad(q);
+  let ow=Math.round(R.w), oh=Math.round(R.h);
+  const m=Math.max(ow,oh); if(m>MAXDIM){ const s=MAXDIM/m; ow=Math.round(ow*s); oh=Math.round(oh*s); }
+  const out=warpFromQuad(ph.canvas,R.quad,ow,oh);
+  ph.corrected=out;
+  const note=autoOrient(ph);
+  expCache=null;
+  const f=$("flat"+i); f.src=ph.corrected.toDataURL(); f.classList.remove("hidden");
+  $("cstat"+i).innerHTML="<span class='ok'>Corrected.</span> "+ph.corrected.width+" × "+ph.corrected.height+" — a flat rectangle."+(note?" Turned upright.":"");
+  invalidateStitch(); setProgress();
+  if(photos[0].corrected&&photos[1].corrected){
+    $("alignStatus").textContent="Both photos corrected — measuring the alignment…";
+    runAutoAlign();
+  }
+}
+function invalidateStitch(){
+  finalDoc=null; align.ready=false;
+  $("alignBtn").disabled=true; $("refineBtn").disabled=true;
+  $("dxRange").disabled=true; $("dyRange").disabled=true; $("rotRange").disabled=true;
+  $("downloadBtn").disabled=true;
+  if(photos[0]&&photos[0].corrected&&photos[1]&&photos[1].corrected){ $("alignBtn").disabled=false; }
+  setProgress();
+}
+</script>
+<script>
+"use strict";
+/* ================= alignment: similarity fit =================
+   B is placed relative to A by a similarity transform
+     pA = s · R(rot) · pB + (tx, ty)          (full corrected-image coords)
+   Auto-align estimates it from matched texture patches — Harris corners
+   with gradient-histogram descriptors, mutual matching, RANSAC — and then
+   verifies the winner against the overlap pixels before trusting it.
+   Two fallbacks, in order: a strictly gated translation search (NCC), and
+   an honest side-by-side placement when the photos share no content.
+   Blending across the overlap used to smear two misregistered copies of
+   the text over the whole overlap width; the seam weights below are built
+   from distance transforms of the two coverage masks instead, so the
+   hand-off happens in a narrow band around the seam centreline. */
+const align={tx:0,ty:0,rot:0,scale:1,ready:false,mode:"—"};
+function alignC(){ const r=align.rot*Math.PI/180; return {re:align.scale*Math.cos(r), im:align.scale*Math.sin(r)}; }
+function simFwd(c,tx,ty,x,y){ return {x:c.re*x-c.im*y+tx, y:c.im*x+c.re*y+ty}; }
+function simInv(c,tx,ty,x,y){ /* A-frame point -> B-frame point */
+  const dx=x-tx, dy=y-ty, d=c.re*c.re+c.im*c.im;
+  return {x:(c.re*dx+c.im*dy)/d, y:(-c.im*dx+c.re*dy)/d};
+}
+function smallPair(maxDim, srcA, srcB){ /* both corrected images as grayscale, ONE common scale factor */
+  const A=srcA||photos[0].corrected, B=srcB||photos[1].corrected;
+  const k=Math.min(1, maxDim/Math.max(A.width,A.height,B.width,B.height));
+  const mk=c=>{ if(k>=1) return grayOf(c);
+    const t=canvasOf(Math.max(2,Math.round(c.width*k)),Math.max(2,Math.round(c.height*k)));
+    t.getContext("2d").drawImage(c,0,0,t.width,t.height); return grayOf(t); };
+  return {A:mk(A), B:mk(B), k};
+}
+function blur5(src,w,h){ /* separable [1,4,6,4,1] blur, single channel */
+  const tmp=new Float32Array(src.length), out=new Float32Array(src.length), K=[1,4,6,4,1];
+  for(let y=0;y<h;y++) for(let x=0;x<w;x++){ let s=0; for(let k=-2;k<=2;k++) s+=K[k+2]*src[y*w+clamp(x+k,0,w-1)]; tmp[y*w+x]=s/16; }
+  for(let y=0;y<h;y++) for(let x=0;x<w;x++){ let s=0; for(let k=-2;k<=2;k++) s+=K[k+2]*tmp[clamp(y+k,0,h-1)*w+x]; out[y*w+x]=s/16; }
+  return out;
+}
+
+/* ---------- feature detection + descriptors ---------- */
+function detectFeatures(gr){
+  const {g,w,h}=gr, Ix=new Float32Array(w*h), Iy=new Float32Array(w*h);
+  for(let y=1;y<h-1;y++) for(let x=1;x<w-1;x++){ const i=y*w+x;
+    Ix[i]=-g[i-w-1]-2*g[i-1]-g[i+w-1]+g[i-w+1]+2*g[i+1]+g[i+w+1];
+    Iy[i]=-g[i-w-1]-2*g[i-w]-g[i-w+1]+g[i+w-1]+2*g[i+w]+g[i+w+1]; }
+  const Ixx=new Float32Array(w*h), Iyy=new Float32Array(w*h), Ixy=new Float32Array(w*h);
+  for(let i=0;i<w*h;i++){ Ixx[i]=Ix[i]*Ix[i]; Iyy[i]=Iy[i]*Iy[i]; Ixy[i]=Ix[i]*Iy[i]; }
+  const Sxx=blur5(Ixx,w,h), Syy=blur5(Iyy,w,h), Sxy=blur5(Ixy,w,h);
+  const R=new Float32Array(w*h); let Rmax=0;
+  for(let i=0;i<w*h;i++){ const r=(Sxx[i]*Syy[i]-Sxy[i]*Sxy[i])-0.04*(Sxx[i]+Syy[i])*(Sxx[i]+Syy[i]); R[i]=r; if(r>Rmax)Rmax=r; }
+  const M=14, thr=0.005*Rmax, cand=[];
+  for(let y=M;y<h-M;y++) for(let x=M;x<w-M;x++){ const i=y*w+x, r=R[i];
+    if(r<thr) continue;
+    let ok=true;
+    for(let dy=-2;dy<=2&&ok;dy++) for(let dx=-2;dx<=2;dx++){ if((dx||dy)&&R[i+dy*w+dx]>r){ ok=false; break; } }
+    if(ok) cand.push([r,x,y]);
+  }
+  cand.sort((a,b)=>b[0]-a[0]);
+  const pts=[], desc=[];
+  const W2=12, CELL=6; /* 24x24 window, 4x4 cells, 8 unsigned orientation bins -> 128 dims */
+  for(const [,cx,cy] of cand.slice(0,600)){
+    const d=new Float32Array(128);
+    for(let wy=0;wy<24;wy++) for(let wx=0;wx<24;wx++){
+      const i=(cy-W2+wy)*w+(cx-W2+wx), gx=Ix[i], gy=Iy[i];
+      const mag=Math.hypot(gx,gy); if(mag<1e-6) continue;
+      let bin=(Math.atan2(gy,gx)*180/Math.PI)%180; if(bin<0) bin+=180; bin/=22.5;
+      const b0=Math.floor(bin)%8, fr=bin-Math.floor(bin), cell=((wy/CELL)|0)*4+((wx/CELL)|0), base=cell*8;
+      d[base+b0]+=mag*(1-fr); d[base+(b0+1)%8]+=mag*fr;
+    }
+    let n=0; for(let k=0;k<128;k++) n+=d[k]*d[k]; n=Math.sqrt(n);
+    if(n<1e-9) continue;
+    for(let k=0;k<128;k++){ d[k]=Math.min(d[k]/n,0.2); }
+    n=0; for(let k=0;k<128;k++) n+=d[k]*d[k]; n=Math.sqrt(n);
+    for(let k=0;k<128;k++) d[k]/=n;
+    pts.push([cx,cy]); desc.push(d);
+  }
+  return {pts, desc};
+}
+function matchFeatures(fA,fB){
+  const na=fA.desc.length, nb=fB.desc.length, out=[];
+  if(na<3||nb<3) return out;
+  const rowBest=new Float32Array(na).fill(-2), rowSec=new Float32Array(na).fill(-2), rowArg=new Int32Array(na).fill(-1);
+  const colBest=new Float32Array(nb).fill(-2), colArg=new Int32Array(nb).fill(-1);
+  for(let i=0;i<na;i++){ const da=fA.desc[i];
+    for(let j=0;j<nb;j++){ const db=fB.desc[j]; let s=0;
+      for(let k=0;k<128;k++) s+=da[k]*db[k];
+      if(s>rowBest[i]){ rowSec[i]=rowBest[i]; rowBest[i]=s; rowArg[i]=j; }
+      else if(s>rowSec[i]) rowSec[i]=s;
+      if(s>colBest[j]){ colBest[j]=s; colArg[j]=i; }
+    }
+  }
+  for(let i=0;i<na;i++){ const j=rowArg[i];
+    if(j>=0 && colArg[j]===i && rowBest[i]>0.55 && rowBest[i]>rowSec[i]+0.03)
+      out.push({ax:fA.pts[i][0], ay:fA.pts[i][1], bx:fB.pts[j][0], by:fB.pts[j][1]});
+  }
+  return out;
+}
+function fitSimLS(pa,pb){ /* least-squares similarity mapping pb -> pa (Umeyama) */
+  const n=pa.length; if(!n) return null;
+  let cax=0,cay=0,cbx=0,cby=0;
+  for(let i=0;i<n;i++){ cax+=pa[i][0]; cay+=pa[i][1]; cbx+=pb[i][0]; cby+=pb[i][1]; }
+  cax/=n; cay/=n; cbx/=n; cby/=n;
+  let nRe=0,nIm=0,den=0;
+  for(let i=0;i<n;i++){ const ax=pa[i][0]-cax, ay=pa[i][1]-cay, bx=pb[i][0]-cbx, by=pb[i][1]-cby;
+    nRe+=ax*bx+ay*by; nIm+=ay*bx-ax*by; den+=bx*bx+by*by; }
+  if(den<1e-9) return null;
+  const re=nRe/den, im=nIm/den;
+  return {re, im, tx:cax-(re*cbx-im*cby), ty:cay-(im*cbx+re*cby)};
+}
+function photoNCC(gA,gB,s){ /* photometric check of a candidate similarity, in the match frame */
+  let sa=0,sb=0,n=0; const va=[],vb=[];
+  for(let y=0;y<gA.h;y+=3) for(let x=0;x<gA.w;x+=3){
+    const q=simInv(s,s.tx,s.ty,x,y);
+    if(q.x<1||q.y<1||q.x>gB.w-2||q.y>gB.h-2) continue;
+    va.push(gA.g[y*gA.w+x]); vb.push(sampleBilinear(gB.g,gB.w,gB.h,q.x,q.y)); n++;
+  }
+  if(n<200) return -2;
+  for(let i=0;i<n;i++){ sa+=va[i]; sb+=vb[i]; }
+  const ma=sa/n, mb=sb/n; let num=0,da=0,db=0;
+  for(let i=0;i<n;i++){ const a=va[i]-ma, b=vb[i]-mb; num+=a*b; da+=a*a; db+=b*b; }
+  return num/Math.sqrt(da*db+1e-9);
+}
+function estimateSimilarity(){
+  const A=photos[0].corrected, B=photos[1].corrected;
+  const gA=grayOf(scaleCanvas(A,760)), gB=grayOf(scaleCanvas(B,760));
+  const ka=gA.w/A.width, kb=gB.w/B.width;
+  const matches=matchFeatures(detectFeatures(gA), detectFeatures(gB));
+  if(matches.length<4) return null;
+  const pa=matches.map(m=>[m.ax,m.ay]), pb=matches.map(m=>[m.bx,m.by]);
+  const cands=[];
+  for(let it=0;it<500;it++){
+    const i=(Math.random()*matches.length)|0; let j=(Math.random()*matches.length)|0;
+    if(j===i) continue;
+    const s=fitSimLS([pa[i],pa[j]],[pb[i],pb[j]]); if(!s) continue;
+    const sc=Math.hypot(s.re,s.im); if(sc<0.55||sc>1.8) continue;
+    let n=0; const inl=[];
+    for(let m=0;m<matches.length;m++){ const p=simFwd(s,s.tx,s.ty,pb[m][0],pb[m][1]);
+      if(Math.hypot(p.x-pa[m][0],p.y-pa[m][1])<2.5){ n++; inl.push(m); } }
+    if(n>=6) cands.push({n, s, inl});
+  }
+  cands.sort((a,b)=>b.n-a.n);
+  let best=null;
+  for(const cand of cands.slice(0,6)){
+    let s=cand.s, inl=cand.inl;
+    for(let r=0;r<3;r++){
+      const s2=fitSimLS(inl.map(i=>pa[i]), inl.map(i=>pb[i])); if(!s2) break; s=s2;
+      inl=[]; for(let m=0;m<matches.length;m++){ const p=simFwd(s,s.tx,s.ty,pb[m][0],pb[m][1]);
+        if(Math.hypot(p.x-pa[m][0],p.y-pa[m][1])<2.5) inl.push(m); }
+    }
+    let se=0; for(const i of inl){ const p=simFwd(s,s.tx,s.ty,pb[i][0],pb[i][1]); se+=(p.x-pa[i][0])**2+(p.y-pa[i][1])**2; }
+    const rec={s, inl:inl.length, ncc:photoNCC(gA,gB,s), rms:inl.length?Math.sqrt(se/inl.length):9e9};
+    if(!best || rec.ncc>best.ncc || (rec.ncc===best.ncc && rec.inl>best.inl)) best=rec;
+  }
+  if(!best) return null;
+  const scale=Math.hypot(best.s.re,best.s.im), ang=Math.atan2(best.s.im,best.s.re)*180/Math.PI;
+  if(best.inl<12 || best.ncc<0.45 || scale<0.6 || scale>1.6 || Math.abs(ang)>30) return null;
+  const ratio=kb/ka; /* match frame -> full corrected coords */
+  return {scale:scale*ratio, rot:ang, tx:best.s.tx/ka, ty:best.s.ty/ka, inl:best.inl, ncc:best.ncc, rms:best.rms};
+}
+
+/* ---------- fallback: gated translation search ---------- */
+function nccAt(a,b,dx,dy,step){
+  const x0=Math.max(0,dx), x1=Math.min(a.w,dx+b.w), y0=Math.max(0,dy), y1=Math.min(a.h,dy+b.h);
+  if(x1-x0<24||y1-y0<24) return -2;
+  let sa=0,sb=0,n=0;
+  for(let y=y0;y<y1;y+=step) for(let x=x0;x<x1;x+=step){ sa+=a.g[y*a.w+x]; sb+=b.g[(y-dy)*b.w+(x-dx)]; n++; }
+  if(n<40) return -2;
+  const ma=sa/n, mb=sb/n; let num=0,da=0,db=0;
+  for(let y=y0;y<y1;y+=step) for(let x=x0;x<x1;x+=step){
+    const va=a.g[y*a.w+x]-ma, vb=b.g[(y-dy)*b.w+(x-dx)]-mb;
+    num+=va*vb; da+=va*va; db+=vb*vb;
+  }
+  return num/Math.sqrt(da*db+1e-9);
+}
+function nccFallback(){
+  const {A,B,k}=smallPair(380);
+  let best={s:-2,dx:Math.round(A.w*0.6),dy:0};
+  const dxMin=-Math.round(A.w*0.1), dxMax=A.w-24, dyMax=Math.round(A.h*0.12);
+  for(let dx=dxMin;dx<=dxMax;dx+=4) for(let dy=-dyMax;dy<=dyMax;dy+=4){
+    const s=nccAt(A,B,dx,dy,3); if(s>best.s) best={s,dx,dy};
+  }
+  for(let dx=best.dx-5;dx<=best.dx+5;dx++) for(let dy=best.dy-5;dy<=best.dy+5;dy++){
+    const s=nccAt(A,B,dx,dy,2); if(s>best.s) best={s,dx,dy};
+  }
+  if(best.s<0.6) return null; /* a soft peak is not evidence — two text pages correlate anywhere */
+  return {tx:best.dx/k, ty:best.dy/k, ncc:best.s};
+}
+
+/* ---------- auto-align orchestration ---------- */
+function runAutoAlign(){
+  if(!photos[0].corrected||!photos[1].corrected) return;
+  const btn=$("alignBtn"); btn.disabled=true; btn.innerHTML="<span class='spin'></span>Aligning…";
+  setTimeout(()=>{
+    const A=photos[0].corrected, B=photos[1].corrected;
+    let msg="";
+    const est=estimateSimilarity();
+    if(est){
+      align.tx=est.tx; align.ty=est.ty; align.rot=est.rot; align.scale=est.scale; align.mode="features";
+      msg="<span class='ok'>Aligned.</span> "+est.inl+" matched patches · RMS "+est.rms.toFixed(2)+" px · rotation "+est.rot.toFixed(1)+"° · scale "+est.scale.toFixed(3)+" · offset ("+Math.round(est.tx)+", "+Math.round(est.ty)+") px · overlap correlation "+est.ncc.toFixed(2)+".";
+    } else {
+      const fb=nccFallback();
+      if(fb){
+        align.tx=fb.tx; align.ty=fb.ty; align.rot=0; align.scale=1; align.mode="ncc";
+        msg="<span class='ok'>Aligned.</span> Offset ("+Math.round(fb.tx)+", "+Math.round(fb.ty)+") px · correlation "+fb.ncc.toFixed(2)+". If the join looks off, nudge the sliders.";
+      } else {
+        const s=clamp(A.height/B.height,0.5,2);
+        align.tx=A.width; align.ty=0; align.rot=0; align.scale=s; align.mode="side";
+        msg="<span class='warn'>The two photos do not overlap.</span> Placed side by side, heights matched (scale "+s.toFixed(2)+"). If your photos do overlap, drag the offset sliders to line them up.";
+      }
+    }
+    align.ready=true;
+    syncSliders(); fitGain(); recomputeBlends();
+    btn.disabled=false; btn.textContent="Auto-align";
+    $("alignStatus").innerHTML=msg;
+    setProgress();
+  },30);
+}
+$("alignBtn").addEventListener("click",runAutoAlign);
+
+/* ---------- manual nudge sliders ---------- */
+function syncSliders(){
+  const A=photos[0].corrected, B=photos[1].corrected;
+  const dxr=$("dxRange"); dxr.min=-Math.round(A.width*0.4); dxr.max=Math.round(A.width+B.width*align.scale);
+  dxr.value=Math.round(align.tx); dxr.disabled=false;
+  $("dxVal").textContent=Math.round(align.tx)+" px";
+  const dyr=$("dyRange"); dyr.min=-Math.round(A.height*0.4); dyr.max=Math.round(A.height*0.4);
+  dyr.value=Math.round(align.ty); dyr.disabled=false;
+  $("dyVal").textContent=Math.round(align.ty)+" px";
+  const rr=$("rotRange"); rr.value=align.rot.toFixed(1); rr.disabled=false;
+  $("rotVal").textContent=align.rot.toFixed(1)+"°";
+  $("refineBtn").disabled=false;
+}
+let sliderTimer=null;
+function sliderChanged(){
+  align.tx=+$("dxRange").value; align.ty=+$("dyRange").value; align.rot=+$("rotRange").value;
+  align.mode="manual"; align.ready=true;
+  $("dxVal").textContent=align.tx+" px"; $("dyVal").textContent=align.ty+" px"; $("rotVal").textContent=align.rot.toFixed(1)+"°";
+  clearTimeout(sliderTimer);
+  sliderTimer=setTimeout(()=>{ fitGain(); recomputeBlends(); },140);
+}
+$("dxRange").addEventListener("input",sliderChanged);
+$("dyRange").addEventListener("input",sliderChanged);
+$("rotRange").addEventListener("input",sliderChanged);
+
+/* ================= gain / exposure correction =================
+   Two layers, both applied to the Feather result whenever the toggle is on:
+   1) Illumination flattening, per photo. A heavily downsampled, blurred copy
+      of the corrected photo is its illumination map — paper shading and
+      light falloff survive the blur, text does not. Every pixel is scaled
+      by (median illumination / local illumination), clamped, so a shadowed
+      corner and a bright centre come out at the same paper level.
+   2) One global multiplier for B. Where the photos overlap it is the
+      least-squares gain over the overlap samples. Where they do not — two
+      separate pages — there are no overlap samples, so the multiplier comes
+      from the two photos' paper levels instead: the median of each
+      illumination map. Either way the number is shown next to the toggle
+      and in the result meters, and turning the toggle off returns the
+      Feather result to the uncorrected brightness. */
+let expCache=null;
+function illumMap(canvas){
+  const sw=48, sh=Math.max(8,Math.round(48*canvas.height/canvas.width));
+  const t=canvasOf(sw,sh); t.getContext("2d").drawImage(canvas,0,0,sw,sh);
+  let {g}=grayOf(t);
+  for(let r=0;r<3;r++) g=blur5(g,sw,sh);
+  const sorted=Array.from(g).sort((a,b)=>a-b);
+  return {g, w:sw, h:sh, median:sorted[Math.floor(sorted.length/2)]||255};
+}
+function flattenIllumination(canvas){
+  const im=illumMap(canvas), out=canvasOf(canvas.width,canvas.height), ctx=out.getContext("2d");
+  ctx.drawImage(canvas,0,0);
+  const img=ctx.getImageData(0,0,out.width,out.height), d=img.data, W=out.width, H=out.height;
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    const il=sampleBilinear(im.g,im.w,im.h, clamp(x*(im.w-1)/(W-1||1),0,im.w-1.001), clamp(y*(im.h-1)/(H-1||1),0,im.h-1.001));
+    if(il<=1) continue;
+    const f=clamp(im.median/il,0.72,1.38); if(Math.abs(f-1)<0.01) continue;
+    const o=(y*W+x)*4;
+    d[o]=clamp(d[o]*f,0,255); d[o+1]=clamp(d[o+1]*f,0,255); d[o+2]=clamp(d[o+2]*f,0,255);
+  }
+  ctx.putImageData(img,0,0); return out;
+}
+function flattenedPair(){
+  const a=photos[0].corrected, b=photos[1].corrected;
+  if(expCache && expCache.a===a && expCache.b===b) return expCache;
+  expCache={a, b, fa:flattenIllumination(a), fb:flattenIllumination(b)};
+  return expCache;
+}
+function overlapPts(A,B,c,tx,ty,step){ /* A-frame grid points whose B-coords fall inside B */
+  const pts=[];
+  for(let y=0;y<A.h;y+=step) for(let x=0;x<A.w;x+=step){
+    const q=simInv(c,tx,ty,x,y);
+    if(q.x>=1&&q.y>=1&&q.x<B.w-2&&q.y<B.h-2) pts.push([x,y]);
+  }
+  return pts;
+}
+function rmsSim(A,B,pts,c,tx,ty,g){
+  let s=0,n=0;
+  for(const [x,y] of pts){ const q=simInv(c,tx,ty,x,y); const b=sampleBilinear(B.g,B.w,B.h,q.x,q.y);
+    if(b<0) continue; const r=A.g[y*A.w+x]-g*b; s+=r*r; n++; }
+  return n?Math.sqrt(s/n):NaN;
+}
+function fitGain(){
+  if(!photos[0].corrected||!photos[1].corrected) return;
+  /* with the toggle on, the fit runs on the illumination-flattened photos —
+     the same pixels the blend will use */
+  const fp=gainOn?flattenedPair():null;
+  const {A,B,k}=smallPair(460, fp?fp.fa:undefined, fp?fp.fb:undefined), c=alignC(), tx=align.tx*k, ty=align.ty*k;
+  const pts=overlapPts(A,B,c,tx,ty,2);
+  if(pts.length>=30){
+    let num=0,den=0;
+    for(const [x,y] of pts){ const q=simInv(c,tx,ty,x,y); const b=sampleBilinear(B.g,B.w,B.h,q.x,q.y);
+      if(b<0) continue; const a=A.g[y*A.w+x]; num+=a*b; den+=b*b; }
+    gainFit=den>0?clamp(num/den,0.4,2.5):1;
+  } else {
+    /* no overlap samples: match the two photos' paper levels instead */
+    const wa=illumMap(photos[0].corrected).median, wb=illumMap(photos[1].corrected).median;
+    gainFit=wb>1?clamp(wa/wb,0.5,2.0):1;
+  }
+  $("gainVal").textContent=gainFit.toFixed(3);
+  $("m-gain").innerHTML=gainOn?gainFit.toFixed(3):gainFit.toFixed(3)+" <small>(off)</small>";
+}
+let gainOn=true;
+$("gainToggle").addEventListener("click",()=>{
+  gainOn=!gainOn;
+  $("gainToggle").setAttribute("aria-checked", gainOn?"true":"false");
+  fitGain(); recomputeBlends();
+});
+const effGain=()=>gainOn?gainFit:1;
+
+/* ================= refinement (joint least squares over the full warp) ================= */
+$("refineBtn").addEventListener("click",()=>{
+  if(!photos[0].corrected||!photos[1].corrected) return;
+  const btn=$("refineBtn"); btn.disabled=true; btn.innerHTML="<span class='spin'></span>Refining…";
+  setTimeout(()=>{
+    const {A,B,k}=smallPair(420);
+    let c=alignC(), tx=align.tx*k, ty=align.ty*k, g=effGain();
+    const useGain=gainOn;
+    const pts=overlapPts(A,B,c,tx,ty,3);
+    if(pts.length<30){
+      $("refineStatus").innerHTML="<span class='warn'>No overlap to refine against.</span> Placement left unchanged.";
+      $("rmsBefore").textContent="—"; $("rmsAfter").textContent="—";
+      btn.disabled=false; btn.textContent="Run refinement";
+      return;
+    }
+    const before=rmsSim(A,B,pts,c,tx,ty,g);
+    let lambda=1e-3, cur=before;
+    const NP=useGain?5:4;
+    for(let it=0;it<14;it++){
+      const th=Math.atan2(c.im,c.re), sc=Math.hypot(c.re,c.im), d=sc*sc;
+      const JtJ=Array.from({length:NP},()=>new Array(NP).fill(0)), Jtr=new Array(NP).fill(0);
+      let nn=0;
+      for(const [x,y] of pts){
+        const q=simInv(c,tx,ty,x,y);
+        const b0=sampleBilinear(B.g,B.w,B.h,q.x,q.y); if(b0<0) continue;
+        const bx1=sampleBilinear(B.g,B.w,B.h,q.x+1,q.y), bx0=sampleBilinear(B.g,B.w,B.h,q.x-1,q.y);
+        const by1=sampleBilinear(B.g,B.w,B.h,q.x,q.y+1), by0=sampleBilinear(B.g,B.w,B.h,q.x,q.y-1);
+        if(bx1<0||bx0<0||by1<0||by0<0) continue;
+        const gx=(bx1-bx0)/2, gy=(by1-by0)/2;
+        const r=A.g[y*A.w+x]-g*b0;
+        /* dq/dtx = (-c.re, c.im)/d · dq/dty = (-c.im, -c.re)/d · dq/dth = (q.y, -q.x) · dq/dlogs = -q */
+        const dq=[[ -c.re/d, c.im/d ],[ -c.im/d, -c.re/d ],[ q.y, -q.x ],[ -q.x, -q.y ]];
+        const J=[];
+        for(let j=0;j<4;j++) J.push(-g*(gx*dq[j][0]+gy*dq[j][1]));
+        if(useGain) J.push(-b0);
+        for(let a=0;a<NP;a++){ Jtr[a]+=J[a]*r; for(let cc=0;cc<NP;cc++) JtJ[a][cc]+=J[a]*J[cc]; }
+        nn++;
+      }
+      if(!nn) break;
+      let improved=false;
+      for(let trial=0;trial<6;trial++){
+        const M=JtJ.map((row,a)=>row.map((v,cc)=>v+(a===cc?lambda*Math.max(1,row[a]):0)));
+        const rhs=Jtr.map(v=>-v);
+        const Aug=M.map((r,a)=>r.concat(rhs[a])); let ok=true;
+        for(let col=0;col<NP;col++){ let piv=col;
+          for(let r=col+1;r<NP;r++) if(Math.abs(Aug[r][col])>Math.abs(Aug[piv][col])) piv=r;
+          if(Math.abs(Aug[piv][col])<1e-12){ ok=false; break; }
+          const t2=Aug[col]; Aug[col]=Aug[piv]; Aug[piv]=t2;
+          for(let r=0;r<NP;r++){ if(r===col) continue; const f=Aug[r][col]/Aug[col][col];
+            for(let kk=col;kk<=NP;kk++) Aug[r][kk]-=f*Aug[col][kk]; } }
+        if(!ok){ lambda*=10; continue; }
+        const delta=Aug.map((r,a)=>r[NP]/r[a]);
+        const nth=th+clamp(delta[2],-0.03,0.03), nsc=sc*Math.exp(clamp(delta[3],-0.06,0.06));
+        const nc={re:nsc*Math.cos(nth), im:nsc*Math.sin(nth)};
+        const ntx=tx+clamp(delta[0],-6,6), nty=ty+clamp(delta[1],-6,6);
+        const ng=useGain?clamp(g+clamp(delta[4],-0.2,0.2),0.4,2.5):g;
+        const nr=rmsSim(A,B,pts,nc,ntx,nty,ng);
+        if(isFinite(nr)&&nr<cur){ c=nc; tx=ntx; ty=nty; g=ng; cur=nr; lambda=Math.max(lambda/3,1e-7); improved=true; break; }
+        lambda*=8;
+      }
+      if(!improved) break;
+    }
+    const after=cur;
+    $("rmsBefore").textContent=before.toFixed(2);
+    $("rmsAfter").textContent=after.toFixed(2);
+    if(after<before){
+      align.tx=tx/k; align.ty=ty/k;
+      align.rot=Math.atan2(c.im,c.re)*180/Math.PI; align.scale=Math.hypot(c.re,c.im);
+      if(useGain){ gainFit=g; $("gainVal").textContent=gainFit.toFixed(3); $("m-gain").textContent=g.toFixed(3); }
+      align.mode="refined";
+      syncSliders(); recomputeBlends();
+      $("refineStatus").innerHTML="<span class='ok'>Refined.</span> RMS "+before.toFixed(2)+" → "+after.toFixed(2)+" gray levels over "+pts.length+" overlap samples.";
+    } else {
+      $("refineStatus").innerHTML="<span class='warn'>No improvement found.</span> Alignment left unchanged.";
+    }
+    btn.disabled=false; btn.textContent="Run refinement";
+  },30);
+});
+
+/* ================= blending ================= */
+function placements(){
+  /* the blend works on the exposure-corrected photos when the toggle is on,
+     on the raw corrected photos when it is off */
+  const fp=gainOn?flattenedPair():null;
+  const A=fp?fp.fa:photos[0].corrected, B=fp?fp.fb:photos[1].corrected, c=alignC();
+  const bc=[{x:0,y:0},{x:B.width,y:0},{x:B.width,y:B.height},{x:0,y:B.height}].map(p=>simFwd(c,align.tx,align.ty,p.x,p.y));
+  let minX=0, minY=0, maxX=A.width, maxY=A.height;
+  for(const p of bc){ minX=Math.min(minX,p.x); minY=Math.min(minY,p.y); maxX=Math.max(maxX,p.x); maxY=Math.max(maxY,p.y); }
+  minX=Math.floor(minX); minY=Math.floor(minY);
+  const W=Math.ceil(maxX)-minX, H=Math.ceil(maxY)-minY;
+  const f=Math.min(1, MAXDIM/Math.max(W,H));
+  const w=Math.max(2,Math.round(W*f)), h=Math.max(2,Math.round(H*f));
+  const cA=canvasOf(w,h), cB=canvasOf(w,h);
+  cA.getContext("2d").drawImage(A,-minX*f,-minY*f,A.width*f,A.height*f);
+  const g=effGain();
+  const bd=B.getContext("2d",{willReadFrequently:true}).getImageData(0,0,B.width,B.height).data;
+  const octx=cB.getContext("2d"), img=octx.createImageData(w,h), od=img.data;
+  for(let y=0;y<h;y++) for(let x=0;x<w;x++){
+    const q=simInv(c,align.tx,align.ty,x/f+minX,y/f+minY);
+    if(q.x<0||q.y<0||q.x>B.width-1||q.y>B.height-1) continue;
+    const x0=Math.floor(q.x), y0=Math.floor(q.y), fx=q.x-x0, fy=q.y-y0, o=(y*w+x)*4;
+    for(let ch=0;ch<3;ch++){
+      const i0=(y0*B.width+x0)*4+ch, i1=(y0*B.width+x0+1)*4+ch, i2=((y0+1)*B.width+x0)*4+ch, i3=((y0+1)*B.width+x0+1)*4+ch;
+      od[o+ch]=clamp((bd[i0]*(1-fx)*(1-fy)+bd[i1]*fx*(1-fy)+bd[i2]*(1-fx)*fy+bd[i3]*fx*fy)*g,0,255);
+    }
+    od[o+3]=255;
+  }
+  octx.putImageData(img,0,0);
+  const ia=rgba(cA).data, ib=rgba(cB).data;
+  const mA=new Float32Array(w*h), mB=new Float32Array(w*h);
+  for(let i=0;i<w*h;i++){ mA[i]=ia[i*4+3]>0?1:0; mB[i]=ib[i*4+3]>0?1:0; }
+  const dA=chamfer(mA,w,h), dB=chamfer(mB,w,h);
+  const wFeather=new Float32Array(w*h), sd=new Float32Array(w*h);
+  for(let i=0;i<w*h;i++){
+    if(!mA[i]&&!mB[i]) continue;
+    if(mA[i]&&!mB[i]){ sd[i]=-99; continue; }
+    if(!mA[i]&&mB[i]){ wFeather[i]=1; sd[i]=99; continue; }
+    sd[i]=dB[i]-dA[i];
+  }
+  /* The feather width comes from the overlap itself, not a constant: along
+     the seam centreline (sd ≈ 0) the two distance transforms sum to the
+     overlap's width across the seam. A wide overlap earns a wide ramp, a
+     narrow overlap a narrow one, and two pages that only touch get the
+     minimum hand-off. The low-frequency (exposure) component crosses on a
+     band several times wider than the texture band. */
+  const seamW=[];
+  for(let i=0;i<w*h;i++) if(mA[i]&&mB[i]&&Math.abs(sd[i])<1.2) seamW.push(dA[i]+dB[i]);
+  seamW.sort((a,b)=>a-b);
+  const overlapW=seamW.length?seamW[Math.floor(seamW.length/2)]:0;
+  const FW=clamp(overlapW*0.35,3,48);
+  const FWwide=clamp(FW*5,16,110);
+  for(let i=0;i<w*h;i++) if(mA[i]&&mB[i]) wFeather[i]=clamp(0.5+sd[i]/(2*FW),0,1);
+  const bTop=Math.min(bc[0].y,bc[1].y,bc[2].y,bc[3].y), bBot=Math.max(bc[0].y,bc[1].y,bc[2].y,bc[3].y);
+  return {cA,cB,f,w,h,mA,mB,wFeather,sd,FW,FWwide,overlapW,
+          joinX:(photos[0].corrected.width-minX)*f, jY0:(Math.max(0,bTop)-minY)*f, jY1:(Math.min(photos[0].corrected.height,bBot)-minY)*f};
+}
+function rgba(canvas){
+  const ctx=canvas.getContext("2d",{willReadFrequently:true});
+  return ctx.getImageData(0,0,canvas.width,canvas.height);
+}
+function chamfer(mask,w,h){ /* two-pass chamfer distance transform: distance to nearest uncovered pixel */
+  const d=new Float32Array(w*h), INF=1e6, D2=1.41421;
+  for(let i=0;i<w*h;i++) d[i]=mask[i]?INF:0;
+  for(let y=0;y<h;y++) for(let x=0;x<w;x++){ const i=y*w+x; if(!d[i]) continue;
+    let m=d[i];
+    if(x>0) m=Math.min(m,d[i-1]+1);
+    if(y>0) m=Math.min(m,d[i-w]+1);
+    if(x>0&&y>0) m=Math.min(m,d[i-w-1]+D2);
+    if(x<w-1&&y>0) m=Math.min(m,d[i-w+1]+D2);
+    d[i]=m; }
+  for(let y=h-1;y>=0;y--) for(let x=w-1;x>=0;x--){ const i=y*w+x; if(!d[i]) continue;
+    let m=d[i];
+    if(x<w-1) m=Math.min(m,d[i+1]+1);
+    if(y<h-1) m=Math.min(m,d[i+w]+1);
+    if(x<w-1&&y<h-1) m=Math.min(m,d[i+w+1]+D2);
+    if(x>0&&y<h-1) m=Math.min(m,d[i+w-1]+D2);
+    d[i]=m; }
+  return d;
+}
+function lowPass(data,w,h){ /* Gaussian pyramid down 3 levels and back up: the low-frequency band */
+  let cur={data,w,h}; const sizes=[];
+  const levels=Math.min(w,h)>200?3:2;
+  for(let l=0;l<levels;l++){ sizes.push([cur.w,cur.h]); cur=blurDown(cur.data,cur.w,cur.h,3); }
+  for(let l=levels-1;l>=0;l--) cur=blurUp(cur.data,cur.w,cur.h,3,sizes[l][0],sizes[l][1]);
+  return cur.data;
+}
+function blendFeather(P){
+  /* Feather, split by frequency band (the pyramid machinery below does the
+     splitting): the low-frequency band — exposure and illumination — crosses
+     the seam on the wide ramp, so no brightness step survives; the
+     high-frequency band — the text itself — crosses on the narrow,
+     overlap-derived ramp, so characters hand off sharply instead of
+     ghosting. Single-coverage pixels pass through untouched. */
+  const w=P.cA.width,h=P.cA.height, out=canvasOf(w,h), ctx=out.getContext("2d");
+  const fa=toFloat(rgba(P.cA)), fb=toFloat(rgba(P.cB));
+  const lowA=lowPass(fa,w,h), lowB=lowPass(fb,w,h);
+  const img=ctx.createImageData(w,h), od=img.data;
+  for(let i=0;i<w*h;i++){
+    const o=i*4, o3=i*3;
+    /* uncovered pixels are paper white, never a dark border */
+    if(!P.mA[i]&&!P.mB[i]){ od[o]=255; od[o+1]=255; od[o+2]=255; od[o+3]=255; continue; }
+    if(P.mA[i]&&!P.mB[i]){ for(let ch=0;ch<3;ch++) od[o+ch]=fa[o3+ch]; od[o+3]=255; continue; }
+    if(!P.mA[i]&&P.mB[i]){ for(let ch=0;ch<3;ch++) od[o+ch]=fb[o3+ch]; od[o+3]=255; continue; }
+    const dd=P.sd[i];
+    const wN=clamp(0.5+dd/(2*P.FW),0,1), wW=clamp(0.5+dd/(2*P.FWwide),0,1);
+    for(let ch=0;ch<3;ch++)
+      od[o+ch]=clamp( lowA[o3+ch]*(1-wW)+lowB[o3+ch]*wW + (fa[o3+ch]-lowA[o3+ch])*(1-wN)+(fb[o3+ch]-lowB[o3+ch])*wN, 0, 255);
+    od[o+3]=255;
+  }
+  ctx.putImageData(img,0,0); return out;
+}
+/* --- pyramid machinery (Float32, RGB packed + single-channel mask) --- */
+const K5=[1,4,6,4,1];
+function blurDown(src,w,h,channels){
+  const nw=Math.max(1,Math.floor(w/2)), nh=Math.max(1,Math.floor(h/2));
+  const tmp=new Float32Array(w*h*channels), out=new Float32Array(nw*nh*channels);
+  for(let y=0;y<h;y++) for(let x=0;x<w;x++) for(let c=0;c<channels;c++){
+    let s=0; for(let k=-2;k<=2;k++){ const xx=clamp(x+k,0,w-1); s+=K5[k+2]*src[(y*w+xx)*channels+c]; }
+    tmp[(y*w+x)*channels+c]=s/16;
+  }
+  for(let y=0;y<nh;y++) for(let x=0;x<nw;x++) for(let c=0;c<channels;c++){
+    let s=0; for(let k=-2;k<=2;k++){ const yy=clamp(2*y+k,0,h-1); s+=K5[k+2]*tmp[(yy*w+2*x)*channels+c]; }
+    out[(y*nw+x)*channels+c]=s/16;
+  }
+  return {data:out,w:nw,h:nh};
+}
+function blurUp(src,w,h,channels,nw,nh){
+  const up=new Float32Array(nw*nh*channels);
+  for(let y=0;y<h;y++) for(let x=0;x<w;x++) for(let c=0;c<channels;c++) up[((2*y)*nw+2*x)*channels+c]=src[(y*w+x)*channels+c];
+  const tmp=new Float32Array(nw*nh*channels), out=new Float32Array(nw*nh*channels);
+  for(let y=0;y<nh;y++) for(let x=0;x<nw;x++) for(let c=0;c<channels;c++){
+    let s=0; for(let k=-2;k<=2;k++){ const xx=clamp(x+k,0,nw-1); s+=K5[k+2]*up[(y*nw+xx)*channels+c]; }
+    tmp[(y*nw+x)*channels+c]=s/8;
+  }
+  for(let y=0;y<nh;y++) for(let x=0;x<nw;x++) for(let c=0;c<channels;c++){
+    let s=0; for(let k=-2;k<=2;k++){ const yy=clamp(y+k,0,nh-1); s+=K5[k+2]*tmp[(yy*nw+x)*channels+c]; }
+    out[(y*nw+x)*channels+c]=s/8;
+  }
+  return {data:out,w:nw,h:nh};
+}
+function toFloat(imgData){ const n=imgData.width*imgData.height, out=new Float32Array(n*3), d=imgData.data;
+  for(let i=0;i<n;i++){ out[i*3]=d[i*4]; out[i*3+1]=d[i*4+1]; out[i*3+2]=d[i*4+2]; } return out; }
+/* ================= finishing: crop, trim, level =================
+   The composite's bounding box is bigger than the document whenever B
+   sits rotated or offset — the empty corners used to render as black
+   borders. Finishing crops to the actual coverage, trims any remaining
+   black/transparent margin rows and columns, deskews the page to
+   horizontal, and leaves the document on plain white. */
+function cropToCoverage(cv,P){
+  let x0=P.w,y0=P.h,x1=-1,y1=-1;
+  for(let y=0;y<P.h;y++) for(let x=0;x<P.w;x++){
+    if(P.mA[y*P.w+x]||P.mB[y*P.w+x]){ if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; }
+  }
+  if(x1<0) return cv;
+  const out=canvasOf(x1-x0+1,y1-y0+1);
+  out.getContext("2d").drawImage(cv,x0,y0,x1-x0+1,y1-y0+1,0,0,x1-x0+1,y1-y0+1);
+  return out;
+}
+function trimBorders(cv){
+  const w=cv.width,h=cv.height, d=rgba(cv).data;
+  const isBg=(x,y)=>{ const o=(y*w+x)*4;
+    return d[o+3]<10 || (d[o]<35&&d[o+1]<35&&d[o+2]<35); };
+  const rowBg=y=>{ let n=0; for(let x=0;x<w;x++) if(isBg(x,y)) n++; return n>=w*0.98; };
+  const colBg=x=>{ let n=0; for(let y=0;y<h;y++) if(isBg(x,y)) n++; return n>=h*0.98; };
+  let t=0,b=h-1,l=0,r=w-1;
+  while(t<b&&rowBg(t)) t++;
+  while(b>t&&rowBg(b)) b--;
+  while(l<r&&colBg(l)) l++;
+  while(r>l&&colBg(r)) r--;
+  if(t===0&&b===h-1&&l===0&&r===w-1) return cv;
+  if(b-t<8||r-l<8) return cv;
+  const out=canvasOf(r-l+1,b-t+1);
+  out.getContext("2d").drawImage(cv,l,t,r-l+1,b-t+1,0,0,r-l+1,b-t+1);
+  return out;
+}
+function estimateSkew(cv){
+  const {g,w,h}=grayOf(scaleCanvas(cv,640));
+  const thr=otsuThr(g), pts=[];
+  for(let y=1;y<h-1;y+=2) for(let x=1;x<w-1;x+=2) if(g[y*w+x]<thr) pts.push([x,y]);
+  if(pts.length<400) return 0;
+  const cx=w/2, cy=h/2;
+  const score=a=>{
+    const s=Math.sin(a), c=Math.cos(a), bins=new Float64Array(h+w);
+    for(const [x,y] of pts){ const yy=Math.round(-s*(x-cx)+c*(y-cy))+cy; if(yy>=0&&yy<bins.length) bins[yy]++; }
+    return varianceOf(bins);
+  };
+  const base=score(0); let best=0, bestV=base;
+  for(let deg=-3;deg<=3.001;deg+=0.25){
+    const v=score(deg*Math.PI/180);
+    if(v>bestV){ bestV=v; best=deg; }
+  }
+  if(bestV<base*1.03) return 0; /* no decisive evidence: leave it alone */
+  return best;
+}
+function rotateByAngle(src,deg){
+  const rad=deg*Math.PI/180, c=Math.abs(Math.cos(rad)), s=Math.abs(Math.sin(rad));
+  const nw=Math.max(2,Math.round(src.width*c+src.height*s)), nh=Math.max(2,Math.round(src.width*s+src.height*c));
+  const out=canvasOf(nw,nh), x=out.getContext("2d");
+  x.fillStyle="#ffffff"; x.fillRect(0,0,nw,nh);
+  x.translate(nw/2,nh/2); x.rotate(rad); x.drawImage(src,-src.width/2,-src.height/2);
+  return out;
+}
+function seamError(canvas,P){
+  const {g,w,h}=grayOf(canvas), sd=P.sd;
+  let s=0,n=0;
+  for(let y=2;y<h-2;y+=2) for(let x=2;x<w-2;x+=2){
+    const i=y*w+x;
+    if(!(P.mA[i]&&P.mB[i]) || Math.abs(sd[i])>1.6) continue;
+    let gx=sd[i+1]-sd[i-1], gy=sd[i+w]-sd[i-w];
+    const gl=Math.hypot(gx,gy); if(gl<1e-6){ gx=1; gy=0; } else { gx/=gl; gy/=gl; }
+    const v1=sampleBilinear(g,w,h,x+2*gx,y+2*gy), v2=sampleBilinear(g,w,h,x-2*gx,y-2*gy);
+    if(v1<0||v2<0) continue;
+    s+=Math.abs(v1-v2); n++;
+  }
+  if(n>=10) return s/n;
+  /* no overlap band (pages side by side): measure the step across the join itself */
+  const jx=Math.round(P.joinX); if(jx<3||jx>w-4) return NaN;
+  const y0=Math.max(0,Math.round(P.jY0)), y1=Math.min(h,Math.round(P.jY1));
+  s=0; n=0;
+  for(let y=y0;y<y1;y+=2){ s+=Math.abs(g[y*w+jx+2]-g[y*w+jx-2]); n++; }
+  return n?s/n:NaN;
+}
+function recomputeBlends(){
+  if(!photos[0].corrected||!photos[1].corrected||!align.ready) return;
+  fitGain(); /* first: placements must use the fitted exposure correction */
+  const P=placements();
+  const raw=blendFeather(P);
+  const err=seamError(raw,P);
+  const v=$("m-feather").querySelector(".v");
+  v.innerHTML=isFinite(err)?err.toFixed(2)+" <small>gray levels</small>":"—";
+  /* finish: crop to the document, trim black/empty borders, level it */
+  let doc=trimBorders(cropToCoverage(raw,P));
+  const skew=estimateSkew(doc);
+  lastLevel=0;
+  if(Math.abs(skew)>0.2){ doc=trimBorders(rotateByAngle(doc,-skew)); lastLevel=-skew; }
+  finalDoc=doc;
+  $("m-level").innerHTML=lastLevel?lastLevel.toFixed(2)+"°":"0.00°";
+  const rc=$("resultCanvas"); rc.width=finalDoc.width; rc.height=finalDoc.height;
+  rc.getContext("2d").drawImage(finalDoc,0,0);
+  $("downloadBtn").disabled=false;
+  $("blendStatus").innerHTML= align.mode==="side"
+    ? "<span class='ok'>Done.</span> Two pages, side by side."
+    : "<span class='ok'>Done.</span>";
+  setProgress();
+}
+$("downloadBtn").addEventListener("click",()=>{
+  if(!finalDoc) return;
+  const a=document.createElement("a"); a.download="document-cleaned.png";
+  a.href=finalDoc.toDataURL("image/png"); a.click();
+});
+
+/* ================= init ================= */
+drawPlaceholder($("resultCanvas"),"The finished document appears here.");
+loadDemo();
+</script>
+</body>
+</html>
